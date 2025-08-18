@@ -115,9 +115,25 @@
                                 <!-- Checkboxes/Inputs for payers and amounts will be added here -->
                             </div>
 
-                            <label class="font-medium text-gray-700">Who consumed? (Enter shares, default 1)</label>
+                            <label class="font-medium text-gray-700">How to split?</label>
+                            <div class="flex gap-4 mb-2">
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="splitType" value="equal" class="form-radio text-blue-600 h-4 w-4" checked>
+                                    <span class="ml-2 text-gray-700">Equally</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="splitType" value="shares" class="form-radio text-blue-600 h-4 w-4">
+                                    <span class="ml-2 text-gray-700">By Shares</span>
+                                </label>
+                                <label class="inline-flex items-center">
+                                    <input type="radio" name="splitType" value="custom" class="form-radio text-blue-600 h-4 w-4">
+                                    <span class="ml-2 text-gray-700">Custom Amounts</span>
+                                </label>
+                            </div>
+
+                            <label class="font-medium text-gray-700">Who consumed?</label>
                             <div id="expenseConsumedBy" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
-                                <!-- Checkboxes/Inputs for consumers and shares will be added here -->
+                                <!-- Checkboxes/Inputs for consumers and shares/amounts will be added here -->
                             </div>
                             <button id="addExpenseBtn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Add Expense</button>
                             <button id="cancelEditBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 hidden">Cancel Edit</button>
@@ -398,7 +414,9 @@
             groupContent.classList.add('grid');
             renderMembers();
             updatePaidByCheckboxes();
-            updateConsumedByCheckboxes();
+            // Default to 'equal' split when group content is rendered or changed
+            document.querySelector('input[name="splitType"][value="equal"]').checked = true;
+            updateConsumedByCheckboxes('equal'); // Pass the default split type
             renderExpenses(); // Call renderExpenses after updatePaidBy/ConsumedBy to ensure members are loaded
             calculateAndRenderBalances();
         };
@@ -446,10 +464,22 @@
                     return `${memberName} ($${p.amount.toFixed(2)})`;
                 }).join('<br>'); // Use <br> for multiline display in table cell
 
-                const consumedByText = expense.consumedBy.map(c => {
-                    const memberName = activeGroup.members.find(m => m.id === c.id)?.name || 'Unknown';
-                    return `${memberName} (${c.share} share${c.share !== 1 ? 's' : ''})`;
-                }).join('<br>'); // Use <br> for multiline display in table cell
+                let consumedByText = '';
+                if (expense.splitType === 'equal') {
+                    const consumerNames = expense.consumedBy.map(id => activeGroup.members.find(m => m.id === id)?.name || 'Unknown').join(', ');
+                    consumedByText = `Equally by: ${consumerNames}`;
+                } else if (expense.splitType === 'shares') {
+                    consumedByText = expense.consumedBy.map(c => {
+                        const memberName = activeGroup.members.find(m => m.id === c.id)?.name || 'Unknown';
+                        return `${memberName} (${c.share} share${c.share !== 1 ? 's' : ''})`;
+                    }).join('<br>');
+                } else if (expense.splitType === 'custom') {
+                    consumedByText = expense.consumedBy.map(c => {
+                        const memberName = activeGroup.members.find(m => m.id === c.id)?.name || 'Unknown';
+                        return `${memberName} ($${c.amount.toFixed(2)})`;
+                    }).join('<br>');
+                }
+
 
                 const row = expensesTableBody.insertRow();
                 row.className = 'hover:bg-gray-50'; // Tailwind class for hover effect
@@ -541,7 +571,7 @@
         };
 
 
-        const updateConsumedByCheckboxes = (expense = null) => { // Added optional expense parameter for editing
+        const updateConsumedByCheckboxes = (splitType, expense = null) => { // Now takes splitType and optional expense
             const container = document.getElementById('expenseConsumedBy');
             const activeGroup = groups.find(g => g.id === activeGroupId);
             container.innerHTML = ''; // Reset
@@ -550,30 +580,63 @@
                 activeGroup.members.forEach(member => {
                     const div = document.createElement('div');
                     div.className = 'flex items-center gap-2 mb-1';
+                    let inputHtml = '';
+                    let isChecked = false;
+                    let inputValue = '';
+
+                    // Determine initial checked state and input value based on splitType and expense (if editing)
+                    if (expense) {
+                        if (splitType === 'equal') {
+                            isChecked = expense.consumedBy.includes(member.id);
+                        } else if (splitType === 'shares') {
+                            const consumerEntry = expense.consumedBy.find(c => c.id === member.id);
+                            if (consumerEntry) {
+                                isChecked = true;
+                                inputValue = consumerEntry.share;
+                            }
+                        } else if (splitType === 'custom') {
+                            const consumerEntry = expense.consumedBy.find(c => c.id === member.id);
+                            if (consumerEntry) {
+                                isChecked = true;
+                                inputValue = consumerEntry.amount.toFixed(2);
+                            }
+                        }
+                    } else {
+                        // Default for new expenses: all checked
+                        isChecked = true;
+                        inputValue = '1'; // Default share/amount value
+                    }
+
+                    if (splitType === 'equal') {
+                        inputHtml = `<input type="hidden" class="consumer-value-input" value="1">`; // No visible input for equal
+                    } else if (splitType === 'shares') {
+                        inputHtml = `<input type="number" placeholder="Shares" class="consumer-value-input w-24 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" value="${inputValue}">`;
+                    } else if (splitType === 'custom') {
+                        inputHtml = `<input type="number" placeholder="Amount" class="consumer-value-input w-28 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" step="0.01" value="${inputValue}">`;
+                    }
+
                     div.innerHTML = `
-                        <input type="checkbox" id="consumer-${member.id}" value="${member.id}" class="consumer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500">
+                        <input type="checkbox" id="consumer-${member.id}" value="${member.id}" class="consumer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500" ${isChecked ? 'checked' : ''}>
                         <label for="consumer-${member.id}" class="flex-grow text-gray-700">${member.name}</label>
-                        <input type="number" id="share-${member.id}" placeholder="Shares" class="share-input w-24 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" value="1">
+                        ${inputHtml}
                     `;
                     container.appendChild(div);
 
                     const consumerCheckbox = document.getElementById(`consumer-${member.id}`);
-                    const shareInput = document.getElementById(`share-${member.id}`);
+                    const consumerValueInput = div.querySelector('.consumer-value-input');
 
-                    // Pre-fill for editing
-                    if (expense) {
-                        const consumedByEntry = expense.consumedBy.find(c => c.id === member.id);
-                        if (consumedByEntry) {
-                            consumerCheckbox.checked = true;
-                            shareInput.value = consumedByEntry.share;
-                        } else {
-                            consumerCheckbox.checked = false;
-                            shareInput.value = '1'; // Reset to default if not a consumer
-                        }
-                    } else {
-                        // Default to checked for new expenses
-                        consumerCheckbox.checked = true;
-                        shareInput.value = '1';
+                    // Disable/enable value input based on checkbox state
+                    if (consumerValueInput) {
+                        consumerValueInput.disabled = !consumerCheckbox.checked;
+                        consumerCheckbox.addEventListener('change', () => {
+                            consumerValueInput.disabled = !consumerCheckbox.checked;
+                            if (!consumerCheckbox.checked) {
+                                if (splitType === 'shares') consumerValueInput.value = '1'; // Reset share to 1
+                                if (splitType === 'custom') consumerValueInput.value = ''; // Clear custom amount
+                            } else {
+                                if (splitType === 'shares' && consumerValueInput.value === '') consumerValueInput.value = '1';
+                            }
+                        });
                     }
                 });
             } else {
@@ -638,7 +701,9 @@
                     saveData();
                     renderMembers();
                     updatePaidByCheckboxes(); // Updated function name
-                    updateConsumedByCheckboxes();
+                    // Re-render consumed by checkboxes with current split type to include new member
+                    const currentSplitType = document.querySelector('input[name="splitType"]:checked').value;
+                    updateConsumedByCheckboxes(currentSplitType);
                 }
             } else if (!activeGroupId) {
                 showCustomAlert('Please select or create a group first.');
@@ -658,13 +723,18 @@
                             // Remove from paidBy if this member was a payer
                             expense.paidBy = expense.paidBy.filter(p => p.id !== idToDelete);
                             // Remove from consumedBy if this member was a consumer
-                            expense.consumedBy = expense.consumedBy.filter(c => c.id !== idToDelete);
+                            if (expense.splitType === 'equal') {
+                                expense.consumedBy = expense.consumedBy.filter(cId => cId !== idToDelete);
+                            } else { // shares or custom
+                                expense.consumedBy = expense.consumedBy.filter(c => c.id !== idToDelete);
+                            }
                         });
                         saveData();
                         renderMembers();
                         renderExpenses(); // Re-render expenses to reflect changes
                         updatePaidByCheckboxes(); // Updated function name
-                        updateConsumedByCheckboxes();
+                        const currentSplitType = document.querySelector('input[name="splitType"]:checked').value;
+                        updateConsumedByCheckboxes(currentSplitType); // Re-render consumed by checkboxes
                         calculateAndRenderBalances();
                     }
                 });
@@ -676,6 +746,7 @@
             const amountInput = document.getElementById('expenseAmount');
             const dateInput = document.getElementById('expenseDate');
             const payerCheckboxes = document.querySelectorAll('.payer-checkbox:checked');
+            const splitType = document.querySelector('input[name="splitType"]:checked').value;
             const consumerCheckboxes = document.querySelectorAll('.consumer-checkbox');
 
             const description = descriptionInput.value.trim();
@@ -697,25 +768,40 @@
                 }
             });
 
-            const consumedBy = [];
+            const consumersData = []; // This will store the processed consumer data
+            let totalConsumerAmountOrShares = 0; // For validation
+
             consumerCheckboxes.forEach(checkbox => {
                 if (checkbox.checked) {
                     const memberId = checkbox.value;
-                    const shareInput = document.getElementById(`share-${memberId}`);
-                    let share = parseFloat(shareInput.value);
-                    if (isNaN(share) || share <= 0) {
-                        share = 1;
+                    if (splitType === 'equal') {
+                        consumersData.push(memberId); // Just the ID for equal split
+                    } else { // 'shares' or 'custom'
+                        const valueInput = checkbox.closest('.flex').querySelector('.consumer-value-input');
+                        let value = parseFloat(valueInput.value);
+
+                        if (isNaN(value) || value <= 0) {
+                            value = (splitType === 'shares') ? 1 : 0; // Default to 1 share or 0 amount if invalid
+                        }
+
+                        if (splitType === 'shares') {
+                            consumersData.push({ id: memberId, share: value });
+                            totalConsumerAmountOrShares += value; // Sum of shares
+                        } else if (splitType === 'custom') {
+                            consumersData.push({ id: memberId, amount: value });
+                            totalConsumerAmountOrShares += value; // Sum of custom amounts
+                        }
                     }
-                    consumedBy.push({ id: memberId, share: share });
                 }
             });
+
 
             if (!activeGroupId) {
                 showCustomAlert('Please select or create a group first.');
                 return;
             }
-            if (!description || isNaN(totalAmount) || totalAmount <= 0 || !date || paidBy.length === 0 || consumedBy.length === 0) {
-                showCustomAlert('Please fill in all expense details: description, valid total amount, date, select at least one payer with amount, and select at least one consumer with valid shares.');
+            if (!description || isNaN(totalAmount) || totalAmount <= 0 || !date || paidBy.length === 0 || consumersData.length === 0) {
+                showCustomAlert('Please fill in all expense details: description, valid total amount, date, select at least one payer with amount, and select at least one consumer.');
                 return;
             }
 
@@ -723,6 +809,13 @@
                 showCustomAlert(`The sum of amounts paid ($${totalPaid.toFixed(2)}) does not match the total expense amount ($${totalAmount.toFixed(2)}). Please adjust.`);
                 return;
             }
+
+            // Specific validation for 'custom' split type
+            if (splitType === 'custom' && Math.abs(totalConsumerAmountOrShares - totalAmount) > 0.01) {
+                showCustomAlert(`For 'Custom Amounts' split, the sum of consumer amounts ($${totalConsumerAmountOrShares.toFixed(2)}) must equal the total expense amount ($${totalAmount.toFixed(2)}). Please adjust.`);
+                return;
+            }
+
 
             const activeGroup = groups.find(g => g.id === activeGroupId);
             if (activeGroup) {
@@ -735,7 +828,8 @@
                             amount: totalAmount,
                             date,
                             paidBy,
-                            consumedBy
+                            splitType: splitType, // Save the split type
+                            consumedBy: consumersData // Save the processed consumer data
                         };
                         showCustomAlert('Expense updated successfully!');
                     }
@@ -746,7 +840,8 @@
                         amount: totalAmount,
                         date,
                         paidBy,
-                        consumedBy
+                        splitType: splitType, // Save the split type
+                        consumedBy: consumersData // Save the processed consumer data
                     });
                     showCustomAlert('Expense added successfully!');
                 }
@@ -760,8 +855,9 @@
                     document.getElementById(`paidAmount-${cb.value}`).value = '';
                     document.getElementById(`paidAmount-${cb.value}`).disabled = true;
                 });
-                document.querySelectorAll('.consumer-checkbox').forEach(cb => cb.checked = false);
-                document.querySelectorAll('.share-input').forEach(input => input.value = '1');
+                // Reset split type to default (equal) and re-render consumers
+                document.querySelector('input[name="splitType"][value="equal"]').checked = true;
+                updateConsumedByCheckboxes('equal'); // Re-render to default all consumers checked for new expense
 
                 isEditingExpense = false;
                 currentEditingExpenseId = null;
@@ -789,10 +885,13 @@
             document.getElementById('expenseAmount').value = expenseToEdit.amount;
             document.getElementById('expenseDate').value = expenseToEdit.date;
 
+            // Set split type radio button
+            document.querySelector(`input[name="splitType"][value="${expenseToEdit.splitType}"]`).checked = true;
+
             // Update payer checkboxes and amounts
             updatePaidByCheckboxes(expenseToEdit);
-            // Update consumer checkboxes and shares
-            updateConsumedByCheckboxes(expenseToEdit);
+            // Update consumer checkboxes and shares/amounts based on split type
+            updateConsumedByCheckboxes(expenseToEdit.splitType, expenseToEdit);
 
             // Set editing state
             isEditingExpense = true;
@@ -816,9 +915,9 @@
                 document.getElementById(`paidAmount-${cb.value}`).value = '';
                 document.getElementById(`paidAmount-${cb.value}`).disabled = true;
             });
-            document.querySelectorAll('.consumer-checkbox').forEach(cb => cb.checked = false);
-            document.querySelectorAll('.share-input').forEach(input => input.value = '1');
-            updateConsumedByCheckboxes(); // Re-run to default all consumers checked for new expense
+            // Reset split type to default (equal) and re-render consumers
+            document.querySelector('input[name="splitType"][value="equal"]').checked = true;
+            updateConsumedByCheckboxes('equal'); // Re-run to default all consumers checked for new expense
 
             // Reset editing state
             isEditingExpense = false;
@@ -866,12 +965,33 @@
                     }
                 });
 
-                let totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
-                if (totalShares > 0) {
+                let totalConsumerCost = 0; // Sum of what consumers are responsible for
+                let totalShares = 0;
+
+                if (expense.splitType === 'equal') {
+                    const numConsumers = expense.consumedBy.length;
+                    if (numConsumers > 0) {
+                        const perPersonCost = expense.amount / numConsumers;
+                        expense.consumedBy.forEach(consumerId => {
+                            if (balances[consumerId] !== undefined) {
+                                balances[consumerId] -= perPersonCost;
+                            }
+                        });
+                    }
+                } else if (expense.splitType === 'shares') {
+                    totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
+                    if (totalShares > 0) {
+                        expense.consumedBy.forEach(consumer => {
+                            if (balances[consumer.id] !== undefined) {
+                                const consumerCost = (expense.amount / totalShares) * consumer.share;
+                                balances[consumer.id] -= consumerCost;
+                            }
+                        });
+                    }
+                } else if (expense.splitType === 'custom') {
                     expense.consumedBy.forEach(consumer => {
                         if (balances[consumer.id] !== undefined) {
-                            const consumerCost = (expense.amount / totalShares) * consumer.share;
-                            balances[consumer.id] -= consumerCost;
+                            balances[consumer.id] -= consumer.amount; // Directly subtract custom amount
                         }
                     });
                 }
@@ -963,7 +1083,8 @@
                 amount: amount,
                 date: today,
                 paidBy: [{ id: debtorId, amount: amount }],
-                consumedBy: [{ id: creditorId, share: 1 }]
+                splitType: 'custom', // Mark settlement as custom split for consistent calculation
+                consumedBy: [{ id: creditorId, amount: amount }] // Creditor 'consumed' the payment
             };
             activeGroup.expenses.push(settlementExpense);
             saveData();
@@ -999,12 +1120,31 @@
                                 currentBalances[payer.id] += payer.amount;
                             }
                         });
-                        let totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
-                        if (totalShares > 0) {
+                        let totalShares = 0;
+                        if (expense.splitType === 'equal') {
+                            const numConsumers = expense.consumedBy.length;
+                            if (numConsumers > 0) {
+                                const perPersonCost = expense.amount / numConsumers;
+                                expense.consumedBy.forEach(consumerId => {
+                                    if (currentBalances[consumerId] !== undefined) {
+                                        currentBalances[consumerId] -= perPersonCost;
+                                    }
+                                });
+                            }
+                        } else if (expense.splitType === 'shares') {
+                            totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
+                            if (totalShares > 0) {
+                                expense.consumedBy.forEach(consumer => {
+                                    if (currentBalances[consumer.id] !== undefined) {
+                                        const consumerCost = (expense.amount / totalShares) * consumer.share;
+                                        currentBalances[consumer.id] -= consumerCost;
+                                    }
+                                });
+                            }
+                        } else if (expense.splitType === 'custom') {
                             expense.consumedBy.forEach(consumer => {
                                 if (currentBalances[consumer.id] !== undefined) {
-                                    const consumerCost = (expense.amount / totalShares) * consumer.share;
-                                    currentBalances[consumer.id] -= consumerCost;
+                                    currentBalances[consumer.id] -= consumer.amount;
                                 }
                             });
                         }
@@ -1050,8 +1190,9 @@
                                 description: `Settlement: ${payerName} to ${receiverName}`,
                                 amount: amountToSettle,
                                 date: today,
-                                paidBy: [{ id: payer.memberId, amount: amountToSettle }], // Payer paid this amount
-                                consumedBy: [{ id: receiver.memberId, share: 1 }] // Receiver effectively "consumed" this payment
+                                paidBy: [{ id: payer.memberId, amount: amountToSettle }],
+                                splitType: 'custom', // Mark settlement as custom split
+                                consumedBy: [{ id: receiver.memberId, amount: amountToSettle }]
                             };
                             activeGroup.expenses.push(settlementExpense);
 
@@ -1158,6 +1299,13 @@
             // Individual settlement modal buttons
             individualSettleConfirmBtn.addEventListener('click', handleIndividualSettleConfirm);
             individualSettleCancelBtn.addEventListener('click', handleIndividualSettleCancel);
+
+            // Event listeners for split type radio buttons
+            document.querySelectorAll('input[name="splitType"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    updateConsumedByCheckboxes(e.target.value);
+                });
+            });
 
 
             // Event delegation for dynamically added delete buttons
