@@ -843,6 +843,7 @@
             }
         };
 
+
         const settleSpecificDebt = (debtorId, creditorId, amount) => {
             const activeGroup = groups.find(g => g.id === activeGroupId);
             if (!activeGroup) return;
@@ -1009,9 +1010,7 @@
                             // Try to restore active group, or default to first if available
                             const lastActiveGroupId = localStorage.getItem('buddyBillActiveGroup');
                             if (lastActiveGroupId && groups.some(g => g.id === lastActiveGroupId)) {
-                                activeGroupId = lastActiveGroupId;
-                            } else if (groups.length > 0) {
-                                activeGroupId = groups[0].id;
+                                activeGroupId = groups[0].id; // Default to first group if last active is gone
                             } else {
                                 activeGroupId = null;
                             }
