@@ -106,8 +106,8 @@
                     <div class="flex flex-col">
                         <h3 class="text-xl font-semibold mb-3 text-red-700">💸 Add Expense</h3>
                         <div class="grid grid-cols-1 gap-4 mb-4">
-                            <input type="text" id="expenseDescription" placeholder="Description (e.g., Dinner, Rent)" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
-                            <input type="number" id="expenseAmount" placeholder="Total Amount" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <input type="text" id="expenseDescription" placeholder="e.g., Dinner, Rent, Groceries" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <input type="number" id="expenseAmount" placeholder="Total Amount (e.g., 50.00)" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
                             <input type="date" id="expenseDate" class="p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500">
 
                             <label class="font-medium text-gray-700">Who paid? (Enter amount paid)</label>
@@ -120,6 +120,8 @@
                                 <!-- Checkboxes/Inputs for consumers and shares will be added here -->
                             </div>
                             <button id="addExpenseBtn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Add Expense</button>
+                            <button id="cancelEditBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 hidden">Cancel Edit</button>
+                            <input type="hidden" id="editingExpenseId"> <!-- Hidden field to store ID of expense being edited -->
                         </div>
                         <h3 class="text-xl font-semibold mb-3 text-red-700">🧾 Expenses</h3>
                         <!-- Moved the expense list to a new section below for tabular display -->
@@ -138,6 +140,7 @@
                 <table id="expensesTable" class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-orange-50">
                         <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">No.</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tl-lg">Description</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Amount</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
@@ -224,6 +227,8 @@
         // Define initial data structure for all groups
         let groups = [];
         let activeGroupId = null;
+        let isEditingExpense = false; // Flag for edit mode
+        let currentEditingExpenseId = null; // Stores the ID of the expense being edited
 
         // Utility function to generate unique IDs
         const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -434,7 +439,7 @@
                 noExpensesMessage.classList.add('hidden');
             }
 
-            activeGroup.expenses.forEach(expense => {
+            activeGroup.expenses.forEach((expense, index) => { // Added index for serial number
                 // Display multiple payers
                 const paidByText = expense.paidBy.map(p => {
                     const memberName = activeGroup.members.find(m => m.id === p.id)?.name || 'Unknown';
@@ -449,22 +454,22 @@
                 const row = expensesTableBody.insertRow();
                 row.className = 'hover:bg-gray-50'; // Tailwind class for hover effect
                 row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}.</td> <!-- Serial number -->
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${expense.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">-$${expense.amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">$${expense.amount.toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${expense.date}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${paidByText}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${consumedByText}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="edit-expense-btn text-blue-600 hover:text-blue-900 transition-colors mr-2" data-id="${expense.id}">Edit</button>
                         <button class="delete-expense-btn text-red-600 hover:text-red-900 transition-colors" data-id="${expense.id}">Delete</button>
                     </td>
                 `;
             });
-            // Re-attach event listener using delegation to the table body, not to specific buttons
-            // This is handled in the DOMContentLoaded listener.
         };
 
 
-        const updatePaidByCheckboxes = () => {
+        const updatePaidByCheckboxes = (expense = null) => { // Added optional expense parameter for editing
             const container = document.getElementById('expensePaidByContainer');
             const activeGroup = groups.find(g => g.id === activeGroupId);
             container.innerHTML = '';
@@ -482,6 +487,16 @@
 
                     const payerCheckbox = document.getElementById(`payer-${member.id}`);
                     const paidAmountInput = document.getElementById(`paidAmount-${member.id}`);
+
+                    // Pre-fill for editing
+                    if (expense) {
+                        const paidByEntry = expense.paidBy.find(p => p.id === member.id);
+                        if (paidByEntry) {
+                            payerCheckbox.checked = true;
+                            paidAmountInput.value = paidByEntry.amount.toFixed(2);
+                            paidAmountInput.disabled = false;
+                        }
+                    }
 
                     payerCheckbox.addEventListener('change', (e) => {
                         paidAmountInput.disabled = !e.target.checked;
@@ -526,7 +541,7 @@
         };
 
 
-        const updateConsumedByCheckboxes = () => {
+        const updateConsumedByCheckboxes = (expense = null) => { // Added optional expense parameter for editing
             const container = document.getElementById('expenseConsumedBy');
             const activeGroup = groups.find(g => g.id === activeGroupId);
             container.innerHTML = ''; // Reset
@@ -536,11 +551,30 @@
                     const div = document.createElement('div');
                     div.className = 'flex items-center gap-2 mb-1';
                     div.innerHTML = `
-                        <input type="checkbox" id="consumer-${member.id}" value="${member.id}" class="consumer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500" checked> <!-- Added 'checked' attribute here -->
+                        <input type="checkbox" id="consumer-${member.id}" value="${member.id}" class="consumer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500">
                         <label for="consumer-${member.id}" class="flex-grow text-gray-700">${member.name}</label>
                         <input type="number" id="share-${member.id}" placeholder="Shares" class="share-input w-24 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" value="1">
                     `;
                     container.appendChild(div);
+
+                    const consumerCheckbox = document.getElementById(`consumer-${member.id}`);
+                    const shareInput = document.getElementById(`share-${member.id}`);
+
+                    // Pre-fill for editing
+                    if (expense) {
+                        const consumedByEntry = expense.consumedBy.find(c => c.id === member.id);
+                        if (consumedByEntry) {
+                            consumerCheckbox.checked = true;
+                            shareInput.value = consumedByEntry.share;
+                        } else {
+                            consumerCheckbox.checked = false;
+                            shareInput.value = '1'; // Reset to default if not a consumer
+                        }
+                    } else {
+                        // Default to checked for new expenses
+                        consumerCheckbox.checked = true;
+                        shareInput.value = '1';
+                    }
                 });
             } else {
                 container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select consumers.</p>';
@@ -637,20 +671,17 @@
             }
         };
 
-        const addExpense = () => {
+        const addOrUpdateExpense = () => { // Renamed from addExpense
             const descriptionInput = document.getElementById('expenseDescription');
             const amountInput = document.getElementById('expenseAmount');
             const dateInput = document.getElementById('expenseDate');
             const payerCheckboxes = document.querySelectorAll('.payer-checkbox:checked');
-            const paidAmountInputs = document.querySelectorAll('.paid-amount-input');
             const consumerCheckboxes = document.querySelectorAll('.consumer-checkbox');
-            const shareInputs = document.querySelectorAll('.share-input');
 
             const description = descriptionInput.value.trim();
             const totalAmount = parseFloat(amountInput.value);
             const date = dateInput.value;
 
-            // Collect paidBy (multiple payers)
             const paidBy = [];
             let totalPaid = 0;
             payerCheckboxes.forEach(checkbox => {
@@ -658,15 +689,14 @@
                 const paidAmountInput = document.getElementById(`paidAmount-${memberId}`);
                 let paidAmount = parseFloat(paidAmountInput.value);
                 if (isNaN(paidAmount) || paidAmount <= 0) {
-                    paidAmount = 0; // Treat as 0 if invalid or empty for a checked payer
+                    paidAmount = 0;
                 }
-                if (paidAmount > 0) { // Only add if they actually paid something
+                if (paidAmount > 0) {
                     paidBy.push({ id: memberId, amount: paidAmount });
                     totalPaid += paidAmount;
                 }
             });
 
-            // Collect consumedBy with shares
             const consumedBy = [];
             consumerCheckboxes.forEach(checkbox => {
                 if (checkbox.checked) {
@@ -674,7 +704,7 @@
                     const shareInput = document.getElementById(`share-${memberId}`);
                     let share = parseFloat(shareInput.value);
                     if (isNaN(share) || share <= 0) {
-                        share = 1; // Default to 1 share if invalid or empty
+                        share = 1;
                     }
                     consumedBy.push({ id: memberId, share: share });
                 }
@@ -689,37 +719,112 @@
                 return;
             }
 
-            // Validate total paid amount matches total expense amount
-            if (Math.abs(totalPaid - totalAmount) > 0.01) { // Allow for small floating point inaccuracies
+            if (Math.abs(totalPaid - totalAmount) > 0.01) {
                 showCustomAlert(`The sum of amounts paid ($${totalPaid.toFixed(2)}) does not match the total expense amount ($${totalAmount.toFixed(2)}). Please adjust.`);
                 return;
             }
 
             const activeGroup = groups.find(g => g.id === activeGroupId);
             if (activeGroup) {
-                activeGroup.expenses.push({
-                    id: generateId(),
-                    description,
-                    amount: totalAmount,
-                    date,
-                    paidBy, // This is now an array of {id, amount}
-                    consumedBy // This includes shares
-                });
+                if (isEditingExpense) {
+                    const expenseIndex = activeGroup.expenses.findIndex(e => e.id === currentEditingExpenseId);
+                    if (expenseIndex !== -1) {
+                        activeGroup.expenses[expenseIndex] = {
+                            id: currentEditingExpenseId, // Keep original ID
+                            description,
+                            amount: totalAmount,
+                            date,
+                            paidBy,
+                            consumedBy
+                        };
+                        showCustomAlert('Expense updated successfully!');
+                    }
+                } else {
+                    activeGroup.expenses.push({
+                        id: generateId(),
+                        description,
+                        amount: totalAmount,
+                        date,
+                        paidBy,
+                        consumedBy
+                    });
+                    showCustomAlert('Expense added successfully!');
+                }
+
+                // Clear form and reset state
                 descriptionInput.value = '';
                 amountInput.value = '';
                 dateInput.value = '';
-                // Reset payer/consumer checkboxes and inputs
-                payerCheckboxes.forEach(cb => {
+                document.querySelectorAll('.payer-checkbox').forEach(cb => {
                     cb.checked = false;
                     document.getElementById(`paidAmount-${cb.value}`).value = '';
                     document.getElementById(`paidAmount-${cb.value}`).disabled = true;
                 });
-                consumerCheckboxes.forEach(cb => cb.checked = false);
-                shareInputs.forEach(input => input.value = '1');
+                document.querySelectorAll('.consumer-checkbox').forEach(cb => cb.checked = false);
+                document.querySelectorAll('.share-input').forEach(input => input.value = '1');
+
+                isEditingExpense = false;
+                currentEditingExpenseId = null;
+                document.getElementById('addExpenseBtn').textContent = 'Add Expense';
+                document.getElementById('cancelEditBtn').classList.add('hidden');
+
                 saveData();
                 renderExpenses();
                 calculateAndRenderBalances();
             }
+        };
+
+        const editExpense = (expenseId) => {
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (!activeGroup) return;
+
+            const expenseToEdit = activeGroup.expenses.find(e => e.id === expenseId);
+            if (!expenseToEdit) {
+                showCustomAlert('Expense not found for editing.');
+                return;
+            }
+
+            // Set form fields
+            document.getElementById('expenseDescription').value = expenseToEdit.description;
+            document.getElementById('expenseAmount').value = expenseToEdit.amount;
+            document.getElementById('expenseDate').value = expenseToEdit.date;
+
+            // Update payer checkboxes and amounts
+            updatePaidByCheckboxes(expenseToEdit);
+            // Update consumer checkboxes and shares
+            updateConsumedByCheckboxes(expenseToEdit);
+
+            // Set editing state
+            isEditingExpense = true;
+            currentEditingExpenseId = expenseId;
+            document.getElementById('addExpenseBtn').textContent = 'Update Expense';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+            // Scroll to the expense form for convenience
+            document.getElementById('expenseDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
+
+        const cancelEdit = () => {
+            // Clear form fields
+            document.getElementById('expenseDescription').value = '';
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseDate').value = '';
+
+            // Reset all payer/consumer checkboxes and inputs
+            document.querySelectorAll('.payer-checkbox').forEach(cb => {
+                cb.checked = false;
+                document.getElementById(`paidAmount-${cb.value}`).value = '';
+                document.getElementById(`paidAmount-${cb.value}`).disabled = true;
+            });
+            document.querySelectorAll('.consumer-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.share-input').forEach(input => input.value = '1');
+            updateConsumedByCheckboxes(); // Re-run to default all consumers checked for new expense
+
+            // Reset editing state
+            isEditingExpense = false;
+            currentEditingExpenseId = null;
+            document.getElementById('addExpenseBtn').textContent = 'Add Expense';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
         };
 
         const deleteExpense = (idToDelete) => {
@@ -1010,7 +1115,9 @@
                             // Try to restore active group, or default to first if available
                             const lastActiveGroupId = localStorage.getItem('buddyBillActiveGroup');
                             if (lastActiveGroupId && groups.some(g => g.id === lastActiveGroupId)) {
-                                activeGroupId = groups[0].id; // Default to first group if last active is gone
+                                activeGroupId = lastActiveGroupId;
+                            } else if (groups.length > 0) {
+                                activeGroupId = groups[0].id;
                             } else {
                                 activeGroupId = null;
                             }
@@ -1041,7 +1148,8 @@
 
             document.getElementById('addGroupBtn').addEventListener('click', addGroup);
             document.getElementById('addMemberBtn').addEventListener('click', addMember);
-            document.getElementById('addExpenseBtn').addEventListener('click', addExpense);
+            document.getElementById('addExpenseBtn').addEventListener('click', addOrUpdateExpense); // Changed to new function
+            document.getElementById('cancelEditBtn').addEventListener('click', cancelEdit); // New event listener
             document.getElementById('exportDataBtn').addEventListener('click', exportData);
             document.getElementById('importDataBtn').addEventListener('click', importData);
             document.getElementById('importFile').addEventListener('change', handleFileSelect);
@@ -1067,11 +1175,14 @@
                 }
             });
 
-            // Event delegation for expense table delete buttons
+            // Event delegation for expense table delete and edit buttons
             document.getElementById('expensesTableBody').addEventListener('click', (e) => {
                 if (e.target.closest('.delete-expense-btn')) {
                     const id = e.target.closest('.delete-expense-btn').dataset.id;
                     deleteExpense(id);
+                } else if (e.target.closest('.edit-expense-btn')) {
+                    const id = e.target.closest('.edit-expense-btn').dataset.id;
+                    editExpense(id);
                 }
             });
 
@@ -1097,13 +1208,13 @@
                 if (e.key === 'Enter') addMember();
             });
             document.getElementById('expenseAmount').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') addExpense();
+                if (e.key === 'Enter') addOrUpdateExpense();
             });
             document.getElementById('expenseDescription').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') addExpense();
+                if (e.key === 'Enter') addOrUpdateExpense();
             });
             document.getElementById('expenseDate').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') addExpense();
+                if (e.key === 'Enter') addOrUpdateExpense();
             });
 
             // Add event listener for expense amount input to trigger auto-fill/clear
