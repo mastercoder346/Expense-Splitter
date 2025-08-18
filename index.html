@@ -114,6 +114,8 @@
                             <div id="expensePaidByContainer" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
                                 <!-- Checkboxes/Inputs for payers and amounts will be added here -->
                             </div>
+                            <p id="amountPaidRemainingDisplay" class="text-sm text-gray-600 mt-1 mb-2 text-right">Remaining to be paid: $0.00</p>
+
 
                             <label class="font-medium text-gray-700">How to split?</label>
                             <div class="flex gap-4 mb-2">
@@ -135,6 +137,8 @@
                             <div id="expenseConsumedBy" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
                                 <!-- Checkboxes/Inputs for consumers and shares/amounts will be added here -->
                             </div>
+                            <p id="amountToDistributeRemainingDisplay" class="text-sm text-gray-600 mt-1 mb-2 text-right">Remaining to distribute: $0.00</p>
+
                             <button id="addExpenseBtn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Add Expense</button>
                             <button id="cancelEditBtn" class="bg-gray-400 hover:bg-gray-500 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 hidden">Cancel Edit</button>
                             <input type="hidden" id="editingExpenseId"> <!-- Hidden field to store ID of expense being edited -->
@@ -419,6 +423,8 @@
             updateConsumedByCheckboxes('equal'); // Pass the default split type
             renderExpenses(); // Call renderExpenses after updatePaidBy/ConsumedBy to ensure members are loaded
             calculateAndRenderBalances();
+            updatePaidAmountRemaining(); // Initialize on group load
+            updateConsumedAmountRemaining(); // Initialize on group load
         };
 
         const renderMembers = () => {
@@ -534,12 +540,34 @@
                             paidAmountInput.value = ''; // Clear value if unchecked
                         }
                         syncPayerAmountForSinglePayer(); // Call on every change
+                        updatePaidAmountRemaining(); // Update remaining paid amount
+                    });
+
+                    paidAmountInput.addEventListener('input', () => {
+                        updatePaidAmountRemaining(); // Update remaining paid amount on input change
                     });
                 });
             } else {
                 container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select payers.</p>';
             }
+            updatePaidAmountRemaining(); // Initial update when checkboxes are rendered
         };
+
+        // New function to update the "Remaining to be paid" display
+        const updatePaidAmountRemaining = () => {
+            const totalAmountInput = document.getElementById('expenseAmount');
+            const totalAmount = parseFloat(totalAmountInput.value) || 0;
+            const paidAmountInputs = document.querySelectorAll('.paid-amount-input:not(:disabled)');
+            let sumPaid = 0;
+            paidAmountInputs.forEach(input => {
+                sumPaid += parseFloat(input.value) || 0;
+            });
+            const remaining = totalAmount - sumPaid;
+            const displayElement = document.getElementById('amountPaidRemainingDisplay');
+            displayElement.textContent = `Remaining to be paid: $${remaining.toFixed(2)}`;
+            displayElement.style.color = (Math.abs(remaining) > 0.01) ? 'red' : 'green'; // Red if not zero, Green if zero
+        };
+
 
         // New function to handle auto-filling for a single payer
         const syncPayerAmountForSinglePayer = () => {
@@ -568,6 +596,7 @@
                     });
                 }
             }
+            updatePaidAmountRemaining(); // Also update the remaining display here
         };
 
 
@@ -604,7 +633,13 @@
                     } else {
                         // Default for new expenses: all checked
                         isChecked = true;
-                        inputValue = '1'; // Default share/amount value
+                        // Set inputValue based on splitType for new expenses
+                        if (splitType === 'shares') {
+                            inputValue = '1';
+                        } else if (splitType === 'custom') {
+                            inputValue = ''; // Should be empty for custom amounts to show placeholder
+                        }
+                        // For 'equal', inputValue is not directly used for a visible input, so it's fine.
                     }
 
                     if (splitType === 'equal') {
@@ -612,7 +647,9 @@
                     } else if (splitType === 'shares') {
                         inputHtml = `<input type="number" placeholder="Shares" class="consumer-value-input w-24 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" value="${inputValue}">`;
                     } else if (splitType === 'custom') {
-                        inputHtml = `<input type="number" placeholder="Amount" class="consumer-value-input w-28 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" step="0.01" value="${inputValue}">`;
+                        // Only add value attribute if inputValue is not empty, otherwise placeholder shows
+                        const valueAttr = inputValue !== '' ? `value="${inputValue}"` : '';
+                        inputHtml = `<input type="number" placeholder="Amount" class="consumer-value-input w-28 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" step="0.01" ${valueAttr}>`;
                     }
 
                     div.innerHTML = `
@@ -636,13 +673,44 @@
                             } else {
                                 if (splitType === 'shares' && consumerValueInput.value === '') consumerValueInput.value = '1';
                             }
+                            updateConsumedAmountRemaining(); // Update remaining distributed amount
                         });
+
+                        if (splitType === 'custom') {
+                            consumerValueInput.addEventListener('input', () => {
+                                updateConsumedAmountRemaining(); // Update remaining distributed amount on input change
+                            });
+                        }
                     }
                 });
             } else {
                 container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select consumers.</p>';
             }
+            updateConsumedAmountRemaining(); // Initial update when checkboxes are rendered
         };
+
+        // New function to update the "Remaining to distribute" display
+        const updateConsumedAmountRemaining = () => {
+            const totalAmountInput = document.getElementById('expenseAmount');
+            const totalAmount = parseFloat(totalAmountInput.value) || 0;
+            const splitType = document.querySelector('input[name="splitType"]:checked').value;
+            const displayElement = document.getElementById('amountToDistributeRemainingDisplay');
+
+            if (splitType === 'custom') {
+                const consumerAmountInputs = document.querySelectorAll('#expenseConsumedBy .consumer-value-input:not(:disabled)');
+                let sumConsumed = 0;
+                consumerAmountInputs.forEach(input => {
+                    sumConsumed += parseFloat(input.value) || 0;
+                });
+                const remaining = totalAmount - sumConsumed;
+                displayElement.textContent = `Remaining to distribute: $${remaining.toFixed(2)}`;
+                displayElement.style.color = (Math.abs(remaining) > 0.01) ? 'red' : 'green'; // Red if not zero, Green if zero
+                displayElement.classList.remove('hidden');
+            } else {
+                displayElement.classList.add('hidden'); // Hide for equal/shares
+            }
+        };
+
 
         // --- Core Logic Functions ---
 
@@ -867,6 +935,8 @@
                 saveData();
                 renderExpenses();
                 calculateAndRenderBalances();
+                updatePaidAmountRemaining(); // Reset on form clear
+                updateConsumedAmountRemaining(); // Reset on form clear
             }
         };
 
@@ -901,6 +971,8 @@
 
             // Scroll to the expense form for convenience
             document.getElementById('expenseDescription').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            updatePaidAmountRemaining(); // Update remaining paid amount after loading expense
+            updateConsumedAmountRemaining(); // Update remaining distributed amount after loading expense
         };
 
         const cancelEdit = () => {
@@ -924,6 +996,8 @@
             currentEditingExpenseId = null;
             document.getElementById('addExpenseBtn').textContent = 'Add Expense';
             document.getElementById('cancelEditBtn').classList.add('hidden');
+            updatePaidAmountRemaining(); // Reset on cancel
+            updateConsumedAmountRemaining(); // Reset on cancel
         };
 
         const deleteExpense = (idToDelete) => {
@@ -1155,7 +1229,7 @@
                         if (Math.abs(currentBalances[memberId]) > 0.01) {
                             outstandingBalances.push({
                                 memberId: memberId,
-                                balance: currentBalances[memberId]
+                                balance: currentBalances[member.id]
                             });
                         }
                     }
@@ -1366,7 +1440,10 @@
             });
 
             // Add event listener for expense amount input to trigger auto-fill/clear
-            document.getElementById('expenseAmount').addEventListener('input', syncPayerAmountForSinglePayer);
+            document.getElementById('expenseAmount').addEventListener('input', () => {
+                syncPayerAmountForSinglePayer();
+                updateConsumedAmountRemaining(); // Also update consumed remaining when total amount changes
+            });
         });
     </script>
 </body>
