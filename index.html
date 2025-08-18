@@ -51,6 +51,16 @@
             width: 90%;
             text-align: center;
         }
+
+        /* Specific modal for individual settlement */
+        .settle-individual-modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            max-width: 450px; /* Slightly wider for the input */
+            width: 90%;
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen text-gray-800">
@@ -154,7 +164,8 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tl-lg">Debtor</th>
                             <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Relationship</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Creditor</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tr-lg">Amount</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tr-lg">Action</th>
                         </tr>
                     </thead>
                     <tbody id="balancesTableBody" class="bg-white divide-y divide-gray-200">
@@ -193,6 +204,22 @@
         </div>
     </div>
 
+    <!-- New Modal for Individual Settlement -->
+    <div id="individualSettleModal" class="custom-modal-backdrop hidden">
+        <div class="settle-individual-modal-content">
+            <h3 class="text-xl font-semibold text-purple-700 mb-4">Settle Individual Debt</h3>
+            <p id="individualSettleMessage" class="text-gray-700 mb-4"></p>
+            <div class="flex items-center justify-center gap-2 mb-6">
+                <label for="settleAmountInput" class="text-gray-700 font-medium">Amount:</label>
+                <input type="number" id="settleAmountInput" class="flex-grow p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" step="0.01" min="0">
+            </div>
+            <div class="flex justify-center gap-4">
+                <button id="individualSettleConfirmBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition duration-250 ease-in-out transform hover:scale-105">Settle</button>
+                <button id="individualSettleCancelBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-6 rounded-lg shadow-md transition duration-250 ease-in-out transform hover:scale-105">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Define initial data structure for all groups
         let groups = [];
@@ -201,7 +228,7 @@
         // Utility function to generate unique IDs
         const generateId = () => Math.random().toString(36).substring(2, 11);
 
-        // --- Custom Modal Functions ---
+        // --- Custom Modal Functions (General Alert/Confirm) ---
         const customModal = document.getElementById('customModal');
         const modalMessage = document.getElementById('modalMessage');
         const modalConfirmBtn = document.getElementById('modalConfirmBtn');
@@ -240,6 +267,52 @@
             };
             customModal.classList.remove('hidden');
         };
+
+        // --- Individual Settlement Modal Functions ---
+        const individualSettleModal = document.getElementById('individualSettleModal');
+        const individualSettleMessage = document.getElementById('individualSettleMessage');
+        const settleAmountInput = document.getElementById('settleAmountInput');
+        const individualSettleConfirmBtn = document.getElementById('individualSettleConfirmBtn');
+        const individualSettleCancelBtn = document.getElementById('individualSettleCancelBtn');
+
+        let individualSettleCallback = null;
+        let currentDebtorId = null;
+        let currentCreditorId = null;
+        let currentAmountOwed = 0;
+
+        const showIndividualSettleModal = (debtorId, creditorId, amountOwed, debtorName, creditorName) => {
+            currentDebtorId = debtorId;
+            currentCreditorId = creditorId;
+            currentAmountOwed = amountOwed;
+
+            individualSettleMessage.textContent = `${debtorName} owes ${creditorName} $${amountOwed.toFixed(2)}. Enter amount to settle:`;
+            settleAmountInput.value = amountOwed.toFixed(2); // Default to full amount
+            settleAmountInput.max = amountOwed.toFixed(2); // Max amount is what's owed
+            settleAmountInput.min = "0.01"; // Minimum settlement amount
+
+            individualSettleModal.classList.remove('hidden');
+        };
+
+        const handleIndividualSettleConfirm = () => {
+            const amountToSettle = parseFloat(settleAmountInput.value);
+
+            if (isNaN(amountToSettle) || amountToSettle <= 0) {
+                showCustomAlert("Please enter a valid amount to settle.");
+                return;
+            }
+            if (amountToSettle > currentAmountOwed + 0.01) { // Allow for tiny float inaccuracies
+                showCustomAlert(`Amount to settle ($${amountToSettle.toFixed(2)}) cannot be more than the owed amount ($${currentAmountOwed.toFixed(2)}).`);
+                return;
+            }
+
+            individualSettleModal.classList.add('hidden');
+            settleSpecificDebt(currentDebtorId, currentCreditorId, amountToSettle);
+        };
+
+        const handleIndividualSettleCancel = () => {
+            individualSettleModal.classList.add('hidden');
+        };
+
 
         // --- Local Storage Functions ---
         const saveData = () => {
@@ -745,6 +818,14 @@
                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">owes to</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${receiverName}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600 font-bold">$${amountToSettle.toFixed(2)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button class="settle-individual-btn text-purple-600 hover:text-purple-900 transition-colors"
+                                data-debtor-id="${payer.memberId}"
+                                data-creditor-id="${receiver.memberId}"
+                                data-amount-owed="${amountToSettle.toFixed(2)}"
+                                data-debtor-name="${payerName}"
+                                data-creditor-name="${receiverName}">Settle</button>
+                        </td>
                     `;
                     receiver.balance -= amountToSettle;
                     payer.balance += amountToSettle;
@@ -760,6 +841,29 @@
                 noBalancesMessage.classList.remove('hidden');
                 noBalancesMessage.textContent = 'Add expenses to see balance details.';
             }
+        };
+
+        const settleSpecificDebt = (debtorId, creditorId, amount) => {
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (!activeGroup) return;
+
+            const debtorName = activeGroup.members.find(m => m.id === debtorId)?.name || 'Unknown Debtor';
+            const creditorName = activeGroup.members.find(m => m.id === creditorId)?.name || 'Unknown Creditor';
+            const today = new Date().toISOString().split('T')[0];
+
+            const settlementExpense = {
+                id: generateId(),
+                description: `Settlement: ${debtorName} to ${creditorName} (Individual)`,
+                amount: amount,
+                date: today,
+                paidBy: [{ id: debtorId, amount: amount }],
+                consumedBy: [{ id: creditorId, share: 1 }]
+            };
+            activeGroup.expenses.push(settlementExpense);
+            saveData();
+            renderExpenses();
+            calculateAndRenderBalances();
+            showCustomAlert(`Successfully recorded $${amount.toFixed(2)} settlement from ${debtorName} to ${creditorName}.`);
         };
 
 
@@ -944,6 +1048,10 @@
             document.getElementById('importFile').addEventListener('change', handleFileSelect);
             document.getElementById('settleDebtsBtn').addEventListener('click', settleDebts);
 
+            // Individual settlement modal buttons
+            individualSettleConfirmBtn.addEventListener('click', handleIndividualSettleConfirm);
+            individualSettleCancelBtn.addEventListener('click', handleIndividualSettleCancel);
+
 
             // Event delegation for dynamically added delete buttons
             document.getElementById('groupList').addEventListener('click', (e) => {
@@ -967,6 +1075,20 @@
                     deleteExpense(id);
                 }
             });
+
+            // Event delegation for individual settlement buttons in balances table
+            document.getElementById('balancesTableBody').addEventListener('click', (e) => {
+                const settleBtn = e.target.closest('.settle-individual-btn');
+                if (settleBtn) {
+                    const debtorId = settleBtn.dataset.debtorId;
+                    const creditorId = settleBtn.dataset.creditorId;
+                    const amountOwed = parseFloat(settleBtn.dataset.amountOwed);
+                    const debtorName = settleBtn.dataset.debtorName;
+                    const creditorName = settleBtn.dataset.creditorName;
+                    showIndividualSettleModal(debtorId, creditorId, amountOwed, debtorName, creditorName);
+                }
+            });
+
 
             // Handle pressing Enter in input fields
             document.getElementById('newGroupName').addEventListener('keypress', (e) => {
