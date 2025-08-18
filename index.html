@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buddy Bill</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5; /* Light gray background */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0; /* bg-blue-100 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8; /* bg-gray-400 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* bg-gray-500 */
+        }
+
+        /* Custom Modal Styles */
+        .custom-modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .custom-modal-content {
+            background-color: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-gray-800">
+    <div class="flex-grow container mx-auto p-4 md:p-8">
+        <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-xl shadow-lg mb-8 text-center">
+            <h1 class="text-4xl font-bold tracking-tight">💰 Buddy Bill</h1>
+            <p class="text-blue-200 mt-2">Split expenses effortlessly with friends!</p>
+        </header>
+
+        <main class="flex flex-col gap-8"> <!-- Changed to flex-col for vertical stacking -->
+            <!-- Group Management Section -->
+            <section class="bg-white p-6 rounded-xl shadow-md overflow-hidden flex flex-col">
+                <h2 class="text-2xl font-semibold mb-4 text-blue-700">👥 Groups</h2>
+                <div class="flex gap-2 mb-4 flex-wrap"> <!-- Added flex-wrap here -->
+                    <input type="text" id="newGroupName" placeholder="New group name" class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="addGroupBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 flex-none">Add</button>
+                </div>
+                <div id="groupList" class="flex-grow overflow-y-auto pr-2">
+                    <!-- Groups will be loaded here -->
+                </div>
+            </section>
+
+            <!-- Active Group Details & Expense/Member Management -->
+            <section class="bg-white p-6 rounded-xl shadow-md flex flex-col">
+                <div id="activeGroupDisplay" class="text-xl font-semibold text-center text-indigo-700 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    Select a group or create a new one to get started!
+                </div>
+
+                <div id="groupContent" class="hidden flex-grow grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Members Section -->
+                    <div class="flex flex-col">
+                        <h3 class="text-xl font-semibold mb-3 text-green-700">👤 Members</h3>
+                        <div class="flex gap-2 mb-4">
+                            <input type="text" id="newMemberName" placeholder="Member name" class="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                            <button id="addMemberBtn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Add</button>
+                        </div>
+                        <ul id="memberList" class="flex-grow bg-gray-50 p-3 rounded-lg overflow-y-auto border border-gray-200">
+                            <!-- Members will be loaded here -->
+                        </ul>
+                    </div>
+
+                    <!-- Expenses Section -->
+                    <div class="flex flex-col">
+                        <h3 class="text-xl font-semibold mb-3 text-red-700">💸 Add Expense</h3>
+                        <div class="grid grid-cols-1 gap-4 mb-4">
+                            <input type="text" id="expenseDescription" placeholder="Description (e.g., Dinner, Rent)" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <input type="number" id="expenseAmount" placeholder="Total Amount" class="p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <input type="date" id="expenseDate" class="p-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-red-500">
+
+                            <label class="font-medium text-gray-700">Who paid? (Enter amount paid)</label>
+                            <div id="expensePaidByContainer" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+                                <!-- Checkboxes/Inputs for payers and amounts will be added here -->
+                            </div>
+
+                            <label class="font-medium text-gray-700">Who consumed? (Enter shares, default 1)</label>
+                            <div id="expenseConsumedBy" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
+                                <!-- Checkboxes/Inputs for consumers and shares will be added here -->
+                            </div>
+                            <button id="addExpenseBtn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Add Expense</button>
+                        </div>
+                        <h3 class="text-xl font-semibold mb-3 text-red-700">🧾 Expenses</h3>
+                        <!-- Moved the expense list to a new section below for tabular display -->
+                        <div id="expenseListPlaceholder" class="flex-grow">
+                            <!-- This will be populated by renderExpenses into a table -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Expenses Table Section -->
+        <section class="mt-8 bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-orange-700">📊 All Expenses</h2>
+            <div class="overflow-x-auto rounded-lg border border-orange-200">
+                <table id="expensesTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-orange-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tl-lg">Description</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Paid By</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Consumed By</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tr-lg">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expensesTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Expense rows will be loaded here -->
+                    </tbody>
+                </table>
+                <p id="noExpensesMessage" class="text-gray-500 text-center p-4 hidden">No expenses yet. Add one!</p>
+            </div>
+        </section>
+
+        <!-- Balances Section -->
+        <section class="mt-8 bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-purple-700">⚖️ Balances (Who owes whom)</h2>
+            <div class="overflow-x-auto rounded-lg border border-purple-200">
+                <table id="balancesTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-purple-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tl-lg">Debtor</th>
+                            <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Relationship</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Creditor</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider rounded-tr-lg">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody id="balancesTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Balance rows will be loaded here -->
+                    </tbody>
+                </table>
+                <p id="noBalancesMessage" class="text-gray-500 text-center p-4 hidden">Add expenses to see balance details, or all debts are settled!</p>
+            </div>
+            <button id="settleDebtsBtn" class="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Settle All Debts</button>
+        </section>
+
+        <!-- Export/Import Section -->
+        <section class="mt-8 bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-semibold mb-4 text-yellow-700">🔄 Data Management</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button id="exportDataBtn" class="flex-grow bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Export Data</button>
+                <button id="importDataBtn" class="flex-grow bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-3 px-5 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105">Import Data</button>
+                <input type="file" id="importFile" accept=".json" class="hidden">
+            </div>
+        </section>
+
+    </div>
+
+    <footer class="bg-gray-800 text-gray-300 text-center p-4 mt-8 rounded-t-xl shadow-inner">
+        &copy; 2025 Buddy Bill. All rights reserved.
+    </footer>
+
+    <!-- Custom Modal HTML Structure -->
+    <div id="customModal" class="custom-modal-backdrop hidden">
+        <div class="custom-modal-content">
+            <p id="modalMessage" class="text-lg text-gray-800 mb-6"></p>
+            <div class="flex justify-center gap-4">
+                <button id="modalConfirmBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-md transition duration-250 ease-in-out transform hover:scale-105">OK</button>
+                <button id="modalCancelBtn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-6 rounded-lg shadow-md transition duration-250 ease-in-out transform hover:scale-105 hidden">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Define initial data structure for all groups
+        let groups = [];
+        let activeGroupId = null;
+
+        // Utility function to generate unique IDs
+        const generateId = () => Math.random().toString(36).substring(2, 11);
+
+        // --- Custom Modal Functions ---
+        const customModal = document.getElementById('customModal');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+        const modalCancelBtn = document.getElementById('modalCancelBtn');
+
+        let confirmCallback = null;
+
+        const showCustomAlert = (message) => {
+            modalMessage.textContent = message;
+            modalConfirmBtn.textContent = 'OK';
+            modalConfirmBtn.onclick = () => customModal.classList.add('hidden');
+            modalCancelBtn.classList.add('hidden');
+            customModal.classList.remove('hidden');
+        };
+
+        const showCustomConfirm = (message, onConfirm) => {
+            modalMessage.textContent = message;
+            modalConfirmBtn.textContent = 'Confirm';
+            modalCancelBtn.classList.remove('hidden');
+
+            confirmCallback = onConfirm;
+
+            modalConfirmBtn.onclick = () => {
+                customModal.classList.add('hidden');
+                if (confirmCallback) {
+                    confirmCallback(true);
+                    confirmCallback = null; // Clear callback
+                }
+            };
+            modalCancelBtn.onclick = () => {
+                customModal.classList.add('hidden');
+                if (confirmCallback) {
+                    confirmCallback(false);
+                    confirmCallback = null; // Clear callback
+                }
+            };
+            customModal.classList.remove('hidden');
+        };
+
+        // --- Local Storage Functions ---
+        const saveData = () => {
+            try {
+                localStorage.setItem('buddyBillGroups', JSON.stringify(groups));
+            } catch (e) {
+                console.error("Error saving data to local storage:", e);
+                showCustomAlert("Error saving data. Please check your browser's local storage settings.");
+            }
+        };
+
+        const loadData = () => {
+            try {
+                const storedData = localStorage.getItem('buddyBillGroups');
+                if (storedData) {
+                    groups = JSON.parse(storedData);
+                    // Attempt to restore the last active group
+                    const lastActiveGroupId = localStorage.getItem('buddyBillActiveGroup');
+                    if (lastActiveGroupId && groups.some(g => g.id === lastActiveGroupId)) {
+                        activeGroupId = lastActiveGroupId;
+                    } else if (groups.length > 0) {
+                        activeGroupId = groups[0].id; // Default to first group if last active is gone
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading data from local storage:", e);
+                showCustomAlert("Error loading data. Local storage might be corrupted.");
+                groups = []; // Reset data on error
+                activeGroupId = null;
+            }
+        };
+
+        const saveActiveGroup = () => {
+            if (activeGroupId) {
+                localStorage.setItem('buddyBillActiveGroup', activeGroupId);
+            } else {
+                localStorage.removeItem('buddyBillActiveGroup');
+            }
+        };
+
+        // --- UI Rendering Functions ---
+
+        const renderGroups = () => {
+            const groupList = document.getElementById('groupList');
+            groupList.innerHTML = '';
+            if (groups.length === 0) {
+                groupList.innerHTML = '<p class="text-gray-500 text-center p-4">No groups yet. Add one!</p>';
+                return;
+            }
+            groups.forEach(group => {
+                const groupItem = document.createElement('div');
+                groupItem.className = `flex items-center justify-between p-3 mb-2 rounded-lg cursor-pointer transition duration-200 ease-in-out ${activeGroupId === group.id ? 'bg-blue-100 border border-blue-400 shadow-inner' : 'bg-gray-100 hover:bg-gray-200'}`;
+                groupItem.innerHTML = `
+                    <span class="font-medium truncate text-blue-800">${group.name}</span>
+                    <button class="delete-group-btn text-red-500 hover:text-red-700 ml-4 p-1 rounded-full hover:bg-red-100 transition-colors" data-id="${group.id}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+                groupItem.onclick = () => selectGroup(group.id);
+                groupList.appendChild(groupItem);
+            });
+        };
+
+        const renderActiveGroupDetails = () => {
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            const activeGroupDisplay = document.getElementById('activeGroupDisplay');
+            const groupContent = document.getElementById('groupContent');
+
+            if (!activeGroup) {
+                activeGroupDisplay.textContent = 'Select a group or create a new one to get started!';
+                groupContent.classList.add('hidden');
+                groupContent.classList.remove('grid');
+                return;
+            }
+
+            activeGroupDisplay.innerHTML = `<span class="font-bold">Active Group:</span> ${activeGroup.name}`;
+            groupContent.classList.remove('hidden');
+            groupContent.classList.add('grid');
+            renderMembers();
+            updatePaidByCheckboxes();
+            updateConsumedByCheckboxes();
+            renderExpenses(); // Call renderExpenses after updatePaidBy/ConsumedBy to ensure members are loaded
+            calculateAndRenderBalances();
+        };
+
+        const renderMembers = () => {
+            const memberList = document.getElementById('memberList');
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            memberList.innerHTML = '';
+
+            if (!activeGroup || activeGroup.members.length === 0) {
+                memberList.innerHTML = '<li class="text-gray-500 p-2 text-center">No members yet. Add some!</li>';
+                return;
+            }
+
+            activeGroup.members.forEach(member => {
+                const memberItem = document.createElement('li');
+                memberItem.className = 'flex items-center justify-between p-2 mb-1 bg-white rounded-md shadow-sm border border-gray-200';
+                memberItem.innerHTML = `
+                    <span class="font-medium text-gray-700">${member.name}</span>
+                    <button class="delete-member-btn text-red-400 hover:text-red-600 ml-4 p-1 rounded-full hover:bg-red-50 transition-colors" data-id="${member.id}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                `;
+                memberList.appendChild(memberItem);
+            });
+        };
+
+        const renderExpenses = () => {
+            const expensesTableBody = document.getElementById('expensesTableBody');
+            const noExpensesMessage = document.getElementById('noExpensesMessage');
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            expensesTableBody.innerHTML = '';
+
+            if (!activeGroup || activeGroup.expenses.length === 0) {
+                noExpensesMessage.classList.remove('hidden');
+                return;
+            } else {
+                noExpensesMessage.classList.add('hidden');
+            }
+
+            activeGroup.expenses.forEach(expense => {
+                // Display multiple payers
+                const paidByText = expense.paidBy.map(p => {
+                    const memberName = activeGroup.members.find(m => m.id === p.id)?.name || 'Unknown';
+                    return `${memberName} ($${p.amount.toFixed(2)})`;
+                }).join('<br>'); // Use <br> for multiline display in table cell
+
+                const consumedByText = expense.consumedBy.map(c => {
+                    const memberName = activeGroup.members.find(m => m.id === c.id)?.name || 'Unknown';
+                    return `${memberName} (${c.share} share${c.share !== 1 ? 's' : ''})`;
+                }).join('<br>'); // Use <br> for multiline display in table cell
+
+                const row = expensesTableBody.insertRow();
+                row.className = 'hover:bg-gray-50'; // Tailwind class for hover effect
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${expense.description}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">-$${expense.amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${expense.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${paidByText}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${consumedByText}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button class="delete-expense-btn text-red-600 hover:text-red-900 transition-colors" data-id="${expense.id}">Delete</button>
+                    </td>
+                `;
+            });
+            // Re-attach event listener using delegation to the table body, not to specific buttons
+            // This is handled in the DOMContentLoaded listener.
+        };
+
+
+        const updatePaidByCheckboxes = () => {
+            const container = document.getElementById('expensePaidByContainer');
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            container.innerHTML = '';
+
+            if (activeGroup && activeGroup.members.length > 0) {
+                activeGroup.members.forEach(member => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-2 mb-1';
+                    div.innerHTML = `
+                        <input type="checkbox" id="payer-${member.id}" value="${member.id}" class="payer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500">
+                        <label for="payer-${member.id}" class="flex-grow text-gray-700">${member.name}</label>
+                        <input type="number" id="paidAmount-${member.id}" placeholder="Amount Paid" class="paid-amount-input w-28 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" step="0.01" disabled>
+                    `;
+                    container.appendChild(div);
+
+                    const payerCheckbox = document.getElementById(`payer-${member.id}`);
+                    const paidAmountInput = document.getElementById(`paidAmount-${member.id}`);
+
+                    payerCheckbox.addEventListener('change', (e) => {
+                        paidAmountInput.disabled = !e.target.checked;
+                        if (!e.target.checked) {
+                            paidAmountInput.value = ''; // Clear value if unchecked
+                        }
+                        syncPayerAmountForSinglePayer(); // Call on every change
+                    });
+                });
+            } else {
+                container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select payers.</p>';
+            }
+        };
+
+        // New function to handle auto-filling for a single payer
+        const syncPayerAmountForSinglePayer = () => {
+            const totalAmountInput = document.getElementById('expenseAmount');
+            const totalAmount = parseFloat(totalAmountInput.value);
+            const checkedPayerCheckboxes = document.querySelectorAll('.payer-checkbox:checked');
+
+            // If exactly one payer is checked and total amount is valid, auto-fill
+            if (checkedPayerCheckboxes.length === 1 && !isNaN(totalAmount) && totalAmount > 0) {
+                const singlePayerId = checkedPayerCheckboxes[0].value;
+                const paidAmountInput = document.getElementById(`paidAmount-${singlePayerId}`);
+                if (!paidAmountInput.disabled) { // Only auto-fill if the input is enabled
+                    paidAmountInput.value = totalAmount.toFixed(2);
+                }
+            } else {
+                // If it's no longer a single payer scenario (multiple, or invalid total amount),
+                // ensure no auto-filling occurs and previously auto-filled values are cleared if they match total.
+                if (checkedPayerCheckboxes.length > 1 || isNaN(totalAmount) || totalAmount <= 0) {
+                     checkedPayerCheckboxes.forEach(checkbox => {
+                        const paidAmountInput = document.getElementById(`paidAmount-${checkbox.value}`);
+                        // Only clear if the input is not disabled (i.e., checkbox is checked)
+                        // and the value is empty or matches the total amount (likely auto-fill).
+                        if (!paidAmountInput.disabled && (paidAmountInput.value === '' || Math.abs(parseFloat(paidAmountInput.value) - totalAmount) < 0.01)) {
+                            paidAmountInput.value = '';
+                        }
+                    });
+                }
+            }
+        };
+
+
+        const updateConsumedByCheckboxes = () => {
+            const container = document.getElementById('expenseConsumedBy');
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            container.innerHTML = ''; // Reset
+
+            if (activeGroup && activeGroup.members.length > 0) {
+                activeGroup.members.forEach(member => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center gap-2 mb-1';
+                    div.innerHTML = `
+                        <input type="checkbox" id="consumer-${member.id}" value="${member.id}" class="consumer-checkbox form-checkbox h-4 w-4 text-blue-600 rounded focus:ring-blue-500" checked> <!-- Added 'checked' attribute here -->
+                        <label for="consumer-${member.id}" class="flex-grow text-gray-700">${member.name}</label>
+                        <input type="number" id="share-${member.id}" placeholder="Shares" class="share-input w-24 p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-400" min="0" value="1">
+                    `;
+                    container.appendChild(div);
+                });
+            } else {
+                container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select consumers.</p>';
+            }
+        };
+
+        // --- Core Logic Functions ---
+
+        const selectGroup = (groupId) => {
+            activeGroupId = groupId;
+            saveActiveGroup();
+            renderGroups(); // Re-render to highlight active group
+            renderActiveGroupDetails();
+        };
+
+        const addGroup = () => {
+            const newGroupNameInput = document.getElementById('newGroupName');
+            const name = newGroupNameInput.value.trim();
+            if (name) {
+                const newGroup = {
+                    id: generateId(),
+                    name: name,
+                    members: [],
+                    expenses: []
+                };
+                groups.push(newGroup);
+                newGroupNameInput.value = '';
+                saveData();
+                renderGroups();
+                if (!activeGroupId) { // Auto-select if first group
+                    selectGroup(newGroup.id);
+                }
+            } else {
+                showCustomAlert('Please enter a group name.');
+            }
+        };
+
+        const deleteGroup = (idToDelete) => {
+            showCustomConfirm('Are you sure you want to delete this group and all its data? This cannot be undone.', (confirmed) => {
+                if (confirmed) {
+                    groups = groups.filter(g => g.id !== idToDelete);
+                    if (activeGroupId === idToDelete) {
+                        activeGroupId = groups.length > 0 ? groups[0].id : null;
+                        saveActiveGroup();
+                    }
+                    saveData();
+                    renderGroups();
+                    renderActiveGroupDetails();
+                }
+            });
+        };
+
+        const addMember = () => {
+            const newMemberNameInput = document.getElementById('newMemberName');
+            const name = newMemberNameInput.value.trim();
+            if (name && activeGroupId) {
+                const activeGroup = groups.find(g => g.id === activeGroupId);
+                if (activeGroup) {
+                    activeGroup.members.push({ id: generateId(), name: name });
+                    newMemberNameInput.value = '';
+                    saveData();
+                    renderMembers();
+                    updatePaidByCheckboxes(); // Updated function name
+                    updateConsumedByCheckboxes();
+                }
+            } else if (!activeGroupId) {
+                showCustomAlert('Please select or create a group first.');
+            } else {
+                showCustomAlert('Please enter a member name.');
+            }
+        };
+
+        const deleteMember = (idToDelete) => {
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (activeGroup) {
+                showCustomConfirm('Are you sure you want to delete this member? All associated expense payments and consumptions will be updated.', (confirmed) => {
+                    if (confirmed) {
+                        activeGroup.members = activeGroup.members.filter(m => m.id !== idToDelete);
+                        // Also remove them from any expenses they paid for or consumed
+                        activeGroup.expenses.forEach(expense => {
+                            // Remove from paidBy if this member was a payer
+                            expense.paidBy = expense.paidBy.filter(p => p.id !== idToDelete);
+                            // Remove from consumedBy if this member was a consumer
+                            expense.consumedBy = expense.consumedBy.filter(c => c.id !== idToDelete);
+                        });
+                        saveData();
+                        renderMembers();
+                        renderExpenses(); // Re-render expenses to reflect changes
+                        updatePaidByCheckboxes(); // Updated function name
+                        updateConsumedByCheckboxes();
+                        calculateAndRenderBalances();
+                    }
+                });
+            }
+        };
+
+        const addExpense = () => {
+            const descriptionInput = document.getElementById('expenseDescription');
+            const amountInput = document.getElementById('expenseAmount');
+            const dateInput = document.getElementById('expenseDate');
+            const payerCheckboxes = document.querySelectorAll('.payer-checkbox:checked');
+            const paidAmountInputs = document.querySelectorAll('.paid-amount-input');
+            const consumerCheckboxes = document.querySelectorAll('.consumer-checkbox');
+            const shareInputs = document.querySelectorAll('.share-input');
+
+            const description = descriptionInput.value.trim();
+            const totalAmount = parseFloat(amountInput.value);
+            const date = dateInput.value;
+
+            // Collect paidBy (multiple payers)
+            const paidBy = [];
+            let totalPaid = 0;
+            payerCheckboxes.forEach(checkbox => {
+                const memberId = checkbox.value;
+                const paidAmountInput = document.getElementById(`paidAmount-${memberId}`);
+                let paidAmount = parseFloat(paidAmountInput.value);
+                if (isNaN(paidAmount) || paidAmount <= 0) {
+                    paidAmount = 0; // Treat as 0 if invalid or empty for a checked payer
+                }
+                if (paidAmount > 0) { // Only add if they actually paid something
+                    paidBy.push({ id: memberId, amount: paidAmount });
+                    totalPaid += paidAmount;
+                }
+            });
+
+            // Collect consumedBy with shares
+            const consumedBy = [];
+            consumerCheckboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    const memberId = checkbox.value;
+                    const shareInput = document.getElementById(`share-${memberId}`);
+                    let share = parseFloat(shareInput.value);
+                    if (isNaN(share) || share <= 0) {
+                        share = 1; // Default to 1 share if invalid or empty
+                    }
+                    consumedBy.push({ id: memberId, share: share });
+                }
+            });
+
+            if (!activeGroupId) {
+                showCustomAlert('Please select or create a group first.');
+                return;
+            }
+            if (!description || isNaN(totalAmount) || totalAmount <= 0 || !date || paidBy.length === 0 || consumedBy.length === 0) {
+                showCustomAlert('Please fill in all expense details: description, valid total amount, date, select at least one payer with amount, and select at least one consumer with valid shares.');
+                return;
+            }
+
+            // Validate total paid amount matches total expense amount
+            if (Math.abs(totalPaid - totalAmount) > 0.01) { // Allow for small floating point inaccuracies
+                showCustomAlert(`The sum of amounts paid ($${totalPaid.toFixed(2)}) does not match the total expense amount ($${totalAmount.toFixed(2)}). Please adjust.`);
+                return;
+            }
+
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (activeGroup) {
+                activeGroup.expenses.push({
+                    id: generateId(),
+                    description,
+                    amount: totalAmount,
+                    date,
+                    paidBy, // This is now an array of {id, amount}
+                    consumedBy // This includes shares
+                });
+                descriptionInput.value = '';
+                amountInput.value = '';
+                dateInput.value = '';
+                // Reset payer/consumer checkboxes and inputs
+                payerCheckboxes.forEach(cb => {
+                    cb.checked = false;
+                    document.getElementById(`paidAmount-${cb.value}`).value = '';
+                    document.getElementById(`paidAmount-${cb.value}`).disabled = true;
+                });
+                consumerCheckboxes.forEach(cb => cb.checked = false);
+                shareInputs.forEach(input => input.value = '1');
+                saveData();
+                renderExpenses();
+                calculateAndRenderBalances();
+            }
+        };
+
+        const deleteExpense = (idToDelete) => {
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (activeGroup) {
+                showCustomConfirm('Are you sure you want to delete this expense? This cannot be undone.', (confirmed) => {
+                    if (confirmed) {
+                        activeGroup.expenses = activeGroup.expenses.filter(e => e.id !== idToDelete);
+                        saveData();
+                        renderExpenses();
+                        calculateAndRenderBalances();
+                    }
+                });
+            }
+        };
+
+        const calculateAndRenderBalances = () => {
+            const balancesTableBody = document.getElementById('balancesTableBody');
+            const noBalancesMessage = document.getElementById('noBalancesMessage');
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            balancesTableBody.innerHTML = ''; // Clear existing rows
+
+            if (!activeGroup || activeGroup.members.length === 0 || activeGroup.expenses.length === 0) {
+                noBalancesMessage.classList.remove('hidden');
+                noBalancesMessage.textContent = 'Add expenses to see balance details.';
+                return;
+            }
+
+            const balances = {}; // memberId -> net balance
+            activeGroup.members.forEach(member => {
+                balances[member.id] = 0; // Initialize all members to 0 balance
+            });
+
+            // Calculate current balances based on all expenses
+            activeGroup.expenses.forEach(expense => {
+                expense.paidBy.forEach(payer => {
+                    if (balances[payer.id] !== undefined) {
+                        balances[payer.id] += payer.amount;
+                    }
+                });
+
+                let totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
+                if (totalShares > 0) {
+                    expense.consumedBy.forEach(consumer => {
+                        if (balances[consumer.id] !== undefined) {
+                            const consumerCost = (expense.amount / totalShares) * consumer.share;
+                            balances[consumer.id] -= consumerCost;
+                        }
+                    });
+                }
+            });
+
+            // Format balances into a list of transactions for display
+            const outstandingBalances = [];
+            for (const memberId in balances) {
+                if (Math.abs(balances[memberId]) > 0.01) { // Consider balances close to zero as settled
+                    outstandingBalances.push({
+                        memberId: memberId,
+                        balance: balances[memberId]
+                    });
+                }
+            }
+
+            // Simple settlement algorithm to determine who owes whom
+            outstandingBalances.sort((a, b) => b.balance - a.balance); // Highest (to receive) to lowest (to pay)
+
+            let i = 0;
+            let j = outstandingBalances.length - 1;
+            let hasTransactionsToDisplay = false;
+
+            while (i < j) {
+                const payer = outstandingBalances[j];
+                const receiver = outstandingBalances[i];
+
+                // Ensure payer.balance is negative and receiver.balance is positive before processing
+                if (payer.balance >= -0.01) { // Payer has no more debt or very close to zero
+                    j--;
+                    continue;
+                }
+                if (receiver.balance <= 0.01) { // Receiver has received all their due or very close to zero
+                    i++;
+                    continue;
+                }
+
+                const amountToSettle = Math.min(receiver.balance, Math.abs(payer.balance));
+
+                const payerName = activeGroup.members.find(m => m.id === payer.memberId)?.name || 'Unknown';
+                const receiverName = activeGroup.members.find(m => m.id === receiver.memberId)?.name || 'Unknown';
+
+                if (amountToSettle > 0.01) { // Only show significant transactions
+                    hasTransactionsToDisplay = true;
+                    const row = balancesTableBody.insertRow();
+                    row.className = 'hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${payerName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-700">owes to</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${receiverName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm text-green-600 font-bold">$${amountToSettle.toFixed(2)}</td>
+                    `;
+                    receiver.balance -= amountToSettle;
+                    payer.balance += amountToSettle;
+                }
+            }
+
+            if (!hasTransactionsToDisplay && activeGroup.members.length > 0 && activeGroup.expenses.length > 0) {
+                 noBalancesMessage.classList.remove('hidden');
+                 noBalancesMessage.textContent = 'Everyone is settled in this group!';
+            } else if (hasTransactionsToDisplay) {
+                noBalancesMessage.classList.add('hidden');
+            } else { // No members or no expenses
+                noBalancesMessage.classList.remove('hidden');
+                noBalancesMessage.textContent = 'Add expenses to see balance details.';
+            }
+        };
+
+
+        const settleDebts = () => {
+            if (!activeGroupId) {
+                showCustomAlert('Please select a group to settle debts.');
+                return;
+            }
+
+            const activeGroup = groups.find(g => g.id === activeGroupId);
+            if (!activeGroup || activeGroup.members.length === 0 || activeGroup.expenses.length === 0) {
+                showCustomAlert('No debts to settle in this group.');
+                return;
+            }
+
+            showCustomConfirm('This will record new "settlement" expenses to zero out current balances. This action cannot be easily undone. Are you sure?', (confirmed) => {
+                if (confirmed) {
+                    // Recalculate balances to get the latest state for settlement
+                    const currentBalances = {};
+                    activeGroup.members.forEach(member => {
+                        currentBalances[member.id] = 0;
+                    });
+
+                    activeGroup.expenses.forEach(expense => {
+                        expense.paidBy.forEach(payer => {
+                            if (currentBalances[payer.id] !== undefined) {
+                                currentBalances[payer.id] += payer.amount;
+                            }
+                        });
+                        let totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
+                        if (totalShares > 0) {
+                            expense.consumedBy.forEach(consumer => {
+                                if (currentBalances[consumer.id] !== undefined) {
+                                    const consumerCost = (expense.amount / totalShares) * consumer.share;
+                                    currentBalances[consumer.id] -= consumerCost;
+                                }
+                            });
+                        }
+                    });
+
+                    const outstandingBalances = [];
+                    for (const memberId in currentBalances) {
+                        if (Math.abs(currentBalances[memberId]) > 0.01) {
+                            outstandingBalances.push({
+                                memberId: memberId,
+                                balance: currentBalances[memberId]
+                            });
+                        }
+                    }
+
+                    outstandingBalances.sort((a, b) => b.balance - a.balance);
+
+                    let i = 0;
+                    let j = outstandingBalances.length - 1;
+                    const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+
+                    while (i < j) {
+                        const payer = outstandingBalances[j];
+                        const receiver = outstandingBalances[i];
+
+                        if (payer.balance >= -0.01) {
+                            j--;
+                            continue;
+                        }
+                        if (receiver.balance <= 0.01) {
+                            i++;
+                            continue;
+                        }
+
+                        const amountToSettle = Math.min(receiver.balance, Math.abs(payer.balance));
+
+                        if (amountToSettle > 0.01) {
+                            const payerName = activeGroup.members.find(m => m.id === payer.memberId)?.name || 'Unknown';
+                            const receiverName = activeGroup.members.find(m => m.id === receiver.memberId)?.name || 'Unknown';
+
+                            const settlementExpense = {
+                                id: generateId(),
+                                description: `Settlement: ${payerName} to ${receiverName}`,
+                                amount: amountToSettle,
+                                date: today,
+                                paidBy: [{ id: payer.memberId, amount: amountToSettle }], // Payer paid this amount
+                                consumedBy: [{ id: receiver.memberId, share: 1 }] // Receiver effectively "consumed" this payment
+                            };
+                            activeGroup.expenses.push(settlementExpense);
+
+                            receiver.balance -= amountToSettle;
+                            payer.balance += amountToSettle;
+                        }
+                    }
+                    saveData();
+                    renderExpenses(); // Re-render to show new settlement expenses
+                    calculateAndRenderBalances(); // Re-calculate and render balances to show zeroed out
+                    showCustomAlert('Debts settled and recorded!');
+                }
+            });
+        };
+
+
+        // --- Export/Import Functions ---
+        const exportData = () => {
+            const dataToExport = JSON.stringify(groups, null, 2); // Pretty print JSON
+            const blob = new Blob([dataToExport], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'buddy-bill-data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showCustomAlert('Data exported successfully!');
+        };
+
+        const importData = () => {
+            document.getElementById('importFile').click(); // Trigger hidden file input click
+        };
+
+        const handleFileSelect = (event) => {
+            const file = event.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            if (file.type !== 'application/json') {
+                showCustomAlert('Please select a valid JSON file (.json).');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedGroups = JSON.parse(e.target.result);
+
+                    // Basic validation to ensure imported data structure is somewhat compatible
+                    if (!Array.isArray(importedGroups) || importedGroups.some(g => !g.id || !g.name || !Array.isArray(g.members) || !Array.isArray(g.expenses))) {
+                        showCustomAlert('Invalid data format. Please select a Buddy Bill export file.');
+                        return;
+                    }
+
+                    showCustomConfirm('Importing data will overwrite all existing Buddy Bill data. Are you sure you want to continue?', (confirmed) => {
+                        if (confirmed) {
+                            groups = importedGroups;
+                            // Try to restore active group, or default to first if available
+                            const lastActiveGroupId = localStorage.getItem('buddyBillActiveGroup');
+                            if (lastActiveGroupId && groups.some(g => g.id === lastActiveGroupId)) {
+                                activeGroupId = lastActiveGroupId;
+                            } else if (groups.length > 0) {
+                                activeGroupId = groups[0].id;
+                            } else {
+                                activeGroupId = null;
+                            }
+                            saveData();
+                            saveActiveGroup();
+                            renderGroups();
+                            renderActiveGroupDetails();
+                            showCustomAlert('Data imported successfully!');
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error parsing imported file:', error);
+                    showCustomAlert('Error importing data. Please ensure the file is a valid JSON format.');
+                } finally {
+                    // Clear the file input value so selecting the same file again triggers change event
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        };
+
+
+        // --- Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            renderGroups();
+            renderActiveGroupDetails();
+
+            document.getElementById('addGroupBtn').addEventListener('click', addGroup);
+            document.getElementById('addMemberBtn').addEventListener('click', addMember);
+            document.getElementById('addExpenseBtn').addEventListener('click', addExpense);
+            document.getElementById('exportDataBtn').addEventListener('click', exportData);
+            document.getElementById('importDataBtn').addEventListener('click', importData);
+            document.getElementById('importFile').addEventListener('change', handleFileSelect);
+            document.getElementById('settleDebtsBtn').addEventListener('click', settleDebts);
+
+
+            // Event delegation for dynamically added delete buttons
+            document.getElementById('groupList').addEventListener('click', (e) => {
+                if (e.target.closest('.delete-group-btn')) {
+                    const id = e.target.closest('.delete-group-btn').dataset.id;
+                    deleteGroup(id);
+                }
+            });
+
+            document.getElementById('memberList').addEventListener('click', (e) => {
+                if (e.target.closest('.delete-member-btn')) {
+                    const id = e.target.closest('.delete-member-btn').dataset.id;
+                    deleteMember(id);
+                }
+            });
+
+            // Event delegation for expense table delete buttons
+            document.getElementById('expensesTableBody').addEventListener('click', (e) => {
+                if (e.target.closest('.delete-expense-btn')) {
+                    const id = e.target.closest('.delete-expense-btn').dataset.id;
+                    deleteExpense(id);
+                }
+            });
+
+            // Handle pressing Enter in input fields
+            document.getElementById('newGroupName').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addGroup();
+            });
+            document.getElementById('newMemberName').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addMember();
+            });
+            document.getElementById('expenseAmount').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addExpense();
+            });
+            document.getElementById('expenseDescription').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addExpense();
+            });
+            document.getElementById('expenseDate').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addExpense();
+            });
+
+            // Add event listener for expense amount input to trigger auto-fill/clear
+            document.getElementById('expenseAmount').addEventListener('input', syncPayerAmountForSinglePayer);
+        });
+    </script>
+</body>
+</html>
