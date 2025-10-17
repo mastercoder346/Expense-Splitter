@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buddy Bill</title>
+    <title>Fair Share</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -61,12 +61,25 @@
             max-width: 450px; /* Slightly wider for the input */
             width: 90%;
         }
+        /* Style for collapsible rows */
+        .collapse-row {
+            cursor: pointer;
+            user-select: none;
+            background-color: #f3f4f6; /* Light gray for headers */
+        }
+        .detail-row {
+            display: none; /* Hidden by default */
+            background-color: #fafafa;
+        }
+        .rotated {
+            transform: rotate(90deg);
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen text-gray-800">
     <div class="flex-grow container mx-auto p-4 md:p-8">
         <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-xl shadow-lg mb-8 text-center">
-            <h1 class="text-4xl font-bold tracking-tight">💰 Buddy Bill</h1>
+            <h1 class="text-4xl font-bold tracking-tight">💰 Fair Share</h1>
             <p class="text-blue-200 mt-2">Split expenses effortlessly with friends!</p>
         </header>
 
@@ -134,6 +147,9 @@
                             </div>
 
                             <label class="font-medium text-gray-700">Who consumed?</label>
+                            <!-- NEW SELECT ALL BUTTON -->
+                            <button id="toggleAllConsumersBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-3 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">Select All Consumers</button>
+                            
                             <div id="expenseConsumedBy" class="p-3 border border-gray-300 rounded-lg bg-gray-50 max-h-40 overflow-y-auto">
                                 <!-- Checkboxes/Inputs for consumers and shares/amounts will be added here -->
                             </div>
@@ -175,6 +191,50 @@
                 </table>
                 <p id="noExpensesMessage" class="text-gray-500 text-center p-4 hidden">No expenses yet. Add one!</p>
             </div>
+            
+            <!-- Consumption Detail Breakdown - NOW COLLAPSIBLE -->
+            <div class="mt-8">
+                <h3 class="text-xl font-semibold mb-3 text-red-600">📝 Consumption Detail Breakdown</h3>
+                <div class="overflow-x-auto rounded-lg border border-red-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-red-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Participant</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Expense</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Incurred Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="consumptionDetailTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Detail data will be loaded here -->
+                        </tbody>
+                    </table>
+                    <p id="noConsumptionDetailMessage" class="text-gray-500 text-center p-4 hidden">No consumption details available.</p>
+                </div>
+            </div>
+
+            <!-- Overall Summary Table -->
+            <div class="mt-6">
+                <h3 class="text-xl font-semibold mb-3 text-orange-700">💰 Overall Financial Summary</h3>
+                <div class="overflow-x-auto rounded-lg border border-orange-200">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-orange-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Participant</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Total Incurred (Cost)</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Total Paid (Contribution)</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Net Balance (Owes / Receives)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Summary data will be loaded here -->
+                        </tbody>
+                        <tfoot id="summaryGrandTotals" class="bg-orange-100 font-bold">
+                            <!-- Grand totals will be loaded here -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
         </section>
 
         <!-- Balances Section -->
@@ -213,7 +273,7 @@
     </div>
 
     <footer class="bg-gray-800 text-gray-300 text-center p-4 mt-8 rounded-t-xl shadow-inner">
-        &copy; 2025 Buddy Bill. All rights reserved.
+        &copy; 2025 Fair Share. All rights reserved.
     </footer>
 
     <!-- Custom Modal HTML Structure -->
@@ -449,14 +509,221 @@
                 memberList.appendChild(memberItem);
             });
         };
+        
+        // Helper to calculate cost per consumer for a single expense
+        const getConsumerCostForExpense = (expense, memberId) => {
+            if (!expense) return 0;
+
+            const totalAmount = expense.amount;
+            const memberConsumption = expense.consumedBy.find(c => (c.id || c) === memberId);
+            
+            if (!memberConsumption) return 0; // Member is not a consumer
+
+            if (expense.splitType === 'equal') {
+                const numConsumers = expense.consumedBy.length;
+                return numConsumers > 0 ? totalAmount / numConsumers : 0;
+            } else if (expense.splitType === 'custom') {
+                // memberConsumption is an object { id, amount }
+                return memberConsumption.amount || 0;
+            } else if (expense.splitType === 'shares') {
+                // memberConsumption is an object { id, share }
+                const totalShares = expense.consumedBy.reduce((sum, c) => sum + (c.share || 0), 0);
+                if (totalShares > 0) {
+                    return (totalAmount / totalShares) * (memberConsumption.share || 0);
+                }
+                return 0;
+            }
+            return 0;
+        }
+        
+        // Helper to calculate amount paid by member for a single expense
+        const getPayerContributionForExpense = (expense, memberId) => {
+            if (!expense) return 0;
+            const payerContribution = expense.paidBy.find(p => p.id === memberId);
+            return payerContribution ? payerContribution.amount : 0;
+        }
+
 
         const renderExpenses = () => {
             const expensesTableBody = document.getElementById('expensesTableBody');
+            const summaryTableBody = document.getElementById('summaryTableBody');
+            const summaryGrandTotals = document.getElementById('summaryGrandTotals');
+            const consumptionDetailTableBody = document.getElementById('consumptionDetailTableBody'); // NEW ID
+            const noConsumptionDetailMessage = document.getElementById('noConsumptionDetailMessage'); // NEW ID
             const noExpensesMessage = document.getElementById('noExpensesMessage');
             const activeGroup = groups.find(g => g.id === activeGroupId);
             expensesTableBody.innerHTML = '';
+            summaryTableBody.innerHTML = '';
+            summaryGrandTotals.innerHTML = '';
+            consumptionDetailTableBody.innerHTML = ''; // Clear new table
 
-            if (!activeGroup || activeGroup.expenses.length === 0) {
+            if (!activeGroup) {
+                noExpensesMessage.classList.remove('hidden');
+                noConsumptionDetailMessage.classList.remove('hidden');
+                return;
+            }
+            
+            // 1. Prepare Consumption Detail Data and Overall Summary Data
+            const summaryData = {};
+            const consumptionDetails = {}; // { memberId: [{ expense: {...}, cost: X.XX }] }
+            let totalGroupCost = 0;
+            let totalGroupPaid = 0;
+            let consumptionDetailsFound = false;
+
+            activeGroup.members.forEach(m => {
+                summaryData[m.id] = { incurred: 0, paid: 0 };
+                consumptionDetails[m.id] = [];
+            });
+            
+            activeGroup.expenses.forEach(expense => {
+                
+                activeGroup.members.forEach(member => {
+                    // Cost (Incurred)
+                    const cost = getConsumerCostForExpense(expense, member.id);
+                    summaryData[member.id].incurred += cost;
+                    
+                    // Paid (Contribution)
+                    const paid = getPayerContributionForExpense(expense, member.id);
+                    summaryData[member.id].paid += paid;
+
+                    // Collect Consumption Detail
+                    if (cost > 0.01) {
+                        consumptionDetailsFound = true;
+                        consumptionDetails[member.id].push({
+                            description: expense.description,
+                            date: expense.date,
+                            cost: cost,
+                            expenseId: expense.id
+                        });
+                    }
+                });
+            });
+            
+            // 2. Render Consumption Detail Breakdown (Collapsible)
+            activeGroup.members.forEach(member => {
+                const details = consumptionDetails[member.id];
+                const totalIncurred = summaryData[member.id].incurred;
+                const memberName = member.name;
+                
+                if (details.length > 0) {
+                    // Header (Collapsible) Row
+                    const headerRow = consumptionDetailTableBody.insertRow();
+                    headerRow.className = 'collapse-row border-t border-gray-200';
+                    headerRow.setAttribute('data-target', `details-${member.id}`);
+                    headerRow.innerHTML = `
+                        <td class="px-6 py-3 whitespace-nowrap text-sm font-bold text-gray-900" colspan="2">
+                            <span class="toggle-icon inline-block w-3 h-3 mr-2 transition-transform duration-200">▶</span>
+                            ${memberName}
+                        </td>
+                        <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-700 text-right">Total:</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-right text-sm text-red-600 font-bold">$${totalIncurred.toFixed(2)}</td>
+                    `;
+                    
+                    // Detail Rows
+                    details.forEach(detail => {
+                        const detailRow = consumptionDetailTableBody.insertRow();
+                        detailRow.className = `detail-row details-${member.id}`;
+                        detailRow.innerHTML = `
+                            <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-400"></td>
+                            <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-700">${detail.description}</td>
+                            <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">${detail.date}</td>
+                            <td class="px-6 py-2 whitespace-nowrap text-right text-sm text-red-500">$${detail.cost.toFixed(2)}</td>
+                        `;
+                    });
+                }
+            });
+
+            // Show/Hide Consumption Detail Message
+            if (!consumptionDetailsFound && activeGroup.members.length > 0) {
+                 noConsumptionDetailMessage.classList.remove('hidden');
+            } else {
+                 noConsumptionDetailMessage.classList.add('hidden');
+            }
+
+            // Add listener for collapsing/expanding
+            consumptionDetailTableBody.querySelectorAll('.collapse-row').forEach(row => {
+                row.addEventListener('click', (e) => {
+                    const targetClass = row.dataset.target;
+                    const icon = row.querySelector('.toggle-icon');
+                    
+                    document.querySelectorAll(`.${targetClass}`).forEach(detailRow => {
+                        // Toggle display of detail rows
+                        if (detailRow.style.display === 'table-row') {
+                            detailRow.style.display = 'none';
+                        } else {
+                            detailRow.style.display = 'table-row';
+                        }
+                    });
+                    
+                    // Rotate the icon
+                    icon.classList.toggle('rotated');
+                });
+            });
+
+
+            totalGroupCost = activeGroup.expenses.reduce((sum, e) => sum + e.amount, 0); 
+            totalGroupPaid = totalGroupCost; // In a closed system, total paid must equal total incurred
+
+            // 3. Render Overall Summary
+            if (activeGroup.members.length > 0) {
+                let totalNet = 0;
+                
+                activeGroup.members.forEach(member => {
+                    const data = summaryData[member.id];
+                    let netBalance = data.paid - data.incurred;
+                    
+                    // Handle near-zero floating point issues
+                    if (Math.abs(netBalance) < 0.01) {
+                        netBalance = 0;
+                    }
+
+                    totalNet += netBalance;
+                    
+                    // Determine color and label for Net Balance
+                    let netBalanceColor = 'text-gray-700';
+                    let netBalanceLabel = '';
+                    let netBalanceValue = Math.abs(netBalance).toFixed(2);
+
+                    if (netBalance > 0) {
+                        netBalanceColor = 'text-green-600 font-bold';
+                        netBalanceLabel = ' (Receives)';
+                    } else if (netBalance < 0) {
+                        netBalanceColor = 'text-red-600 font-bold';
+                        netBalanceLabel = ' (Owes)';
+                    } else {
+                        netBalanceColor = 'text-gray-500';
+                        netBalanceLabel = ' (Settled)';
+                        netBalanceValue = '0.00';
+                    }
+                    
+                    const row = summaryTableBody.insertRow();
+                    row.className = 'hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${member.name}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-right text-sm text-red-600">$${data.incurred.toFixed(2)}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-right text-sm text-green-600">$${data.paid.toFixed(2)}</td>
+                        <td class="px-6 py-3 whitespace-nowrap text-right text-sm ${netBalanceColor}">
+                            $${netBalanceValue} <span class="font-normal text-sm text-gray-500">${netBalanceLabel}</span>
+                        </td>
+                    `;
+                });
+                
+                // Grand Totals Row
+                // Note: Net balance grand total should be close to 0 due to float math. We force it to 0.00.
+                summaryGrandTotals.innerHTML = `
+                    <tr>
+                        <td class="px-6 py-3 text-left">Grand Totals</td>
+                        <td class="px-6 py-3 text-right text-red-700">$${totalGroupCost.toFixed(2)}</td>
+                        <td class="px-6 py-3 text-right text-green-700">$${totalGroupPaid.toFixed(2)}</td>
+                        <td class="px-6 py-3 text-right text-gray-700">$${0.00.toFixed(2)}</td>
+                    </tr>
+                `;
+            } else {
+                summaryTableBody.innerHTML = `<tr class="bg-white"><td colspan="4" class="px-6 py-3 text-center text-gray-500">Add members to see the summary.</td></tr>`;
+            }
+
+            // 4. Render Expenses Table (Unchanged)
+            if (activeGroup.expenses.length === 0) {
                 noExpensesMessage.classList.remove('hidden');
                 return;
             } else {
@@ -485,8 +752,7 @@
                         return `${memberName} ($${c.amount.toFixed(2)})`;
                     }).join('<br>');
                 }
-
-
+                
                 const row = expensesTableBody.insertRow();
                 row.className = 'hover:bg-gray-50'; // Tailwind class for hover effect
                 row.innerHTML = `
@@ -495,7 +761,9 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">$${expense.amount.toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${expense.date}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${paidByText}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${consumedByText}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        ${consumedByText}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button class="edit-expense-btn text-blue-600 hover:text-blue-900 transition-colors mr-2" data-id="${expense.id}">Edit</button>
                         <button class="delete-expense-btn text-red-600 hover:text-red-900 transition-colors" data-id="${expense.id}">Delete</button>
@@ -602,10 +870,29 @@
 
         const updateConsumedByCheckboxes = (splitType, expense = null) => { // Now takes splitType and optional expense
             const container = document.getElementById('expenseConsumedBy');
+            const toggleBtn = document.getElementById('toggleAllConsumersBtn');
             const activeGroup = groups.find(g => g.id === activeGroupId);
             container.innerHTML = ''; // Reset
 
             if (activeGroup && activeGroup.members.length > 0) {
+                toggleBtn.classList.remove('hidden');
+                
+                // Determine if all members are checked based on the expense object (only relevant when editing)
+                let allChecked = false;
+                if (expense) {
+                    if (splitType === 'equal') {
+                        allChecked = expense.consumedBy.length === activeGroup.members.length;
+                    } else { // shares or custom, check against activeGroup members
+                        allChecked = expense.consumedBy.length === activeGroup.members.length && expense.consumedBy.every(c => activeGroup.members.some(m => m.id === c.id));
+                    }
+                } else {
+                    // Default for new expenses: UNCHECKED, so allChecked is false
+                    allChecked = false;
+                }
+
+                toggleBtn.textContent = allChecked ? 'Deselect All Consumers' : 'Select All Consumers';
+
+
                 activeGroup.members.forEach(member => {
                     const div = document.createElement('div');
                     div.className = 'flex items-center gap-2 mb-1';
@@ -631,8 +918,8 @@
                             }
                         }
                     } else {
-                        // Default for new expenses: all checked
-                        isChecked = true;
+                        // Default for new expenses: UNCHECKED
+                        isChecked = false; 
                         // Set inputValue based on splitType for new expenses
                         if (splitType === 'shares') {
                             inputValue = '1';
@@ -673,6 +960,8 @@
                             } else {
                                 if (splitType === 'shares' && consumerValueInput.value === '') consumerValueInput.value = '1';
                             }
+                            // Check if all are now checked/unchecked to update the toggle button text
+                            updateToggleAllButtonState(); 
                             updateConsumedAmountRemaining(); // Update remaining distributed amount
                         });
 
@@ -685,9 +974,61 @@
                 });
             } else {
                 container.innerHTML = '<p class="text-gray-500 text-sm">Add members to select consumers.</p>';
+                toggleBtn.classList.add('hidden');
             }
             updateConsumedAmountRemaining(); // Initial update when checkboxes are rendered
         };
+        
+        const updateToggleAllButtonState = () => {
+            const toggleBtn = document.getElementById('toggleAllConsumersBtn');
+            const consumerCheckboxes = document.querySelectorAll('.consumer-checkbox');
+            if (consumerCheckboxes.length === 0) {
+                toggleBtn.textContent = 'Select All Consumers';
+                return;
+            }
+            
+            const checkedCount = document.querySelectorAll('.consumer-checkbox:checked').length;
+            
+            if (checkedCount === consumerCheckboxes.length) {
+                toggleBtn.textContent = 'Deselect All Consumers';
+            } else {
+                toggleBtn.textContent = 'Select All Consumers';
+            }
+        }
+        
+        const toggleAllConsumers = () => {
+            const toggleBtn = document.getElementById('toggleAllConsumersBtn');
+            const consumerCheckboxes = document.querySelectorAll('.consumer-checkbox');
+            const shouldCheck = toggleBtn.textContent === 'Select All Consumers';
+            const splitType = document.querySelector('input[name="splitType"]:checked').value;
+
+            consumerCheckboxes.forEach(checkbox => {
+                checkbox.checked = shouldCheck;
+                const valueInput = checkbox.closest('.flex').querySelector('.consumer-value-input');
+                
+                if (valueInput) {
+                    valueInput.disabled = !shouldCheck;
+                    
+                    if (shouldCheck) {
+                        // When selecting all, reset to default shares or clear custom amount
+                        if (splitType === 'shares' && (valueInput.value === '' || parseFloat(valueInput.value) <= 0)) {
+                             valueInput.value = '1';
+                        }
+                        if (splitType === 'custom') {
+                            // Don't auto-fill, keep current or empty for custom
+                            // We will keep the value as is if already entered, otherwise show placeholder
+                        }
+                    } else {
+                        // When deselecting, clear values
+                        valueInput.value = '';
+                    }
+                }
+            });
+            
+            updateToggleAllButtonState();
+            updateConsumedAmountRemaining();
+        };
+
 
         // New function to update the "Remaining to distribute" display
         const updateConsumedAmountRemaining = () => {
@@ -786,7 +1127,7 @@
                 showCustomConfirm('Are you sure you want to delete this member? All associated expense payments and consumptions will be updated.', (confirmed) => {
                     if (confirmed) {
                         activeGroup.members = activeGroup.members.filter(m => m.id !== idToDelete);
-                        // Also remove them from any expenses they paid for or consumed
+                        // Also remove them from any expenses they paid for or or consumed
                         activeGroup.expenses.forEach(expense => {
                             // Remove from paidBy if this member was a payer
                             expense.paidBy = expense.paidBy.filter(p => p.id !== idToDelete);
@@ -899,7 +1240,7 @@
                             splitType: splitType, // Save the split type
                             consumedBy: consumersData // Save the processed consumer data
                         };
-                        showCustomAlert('Expense updated successfully!');
+                        // No alert needed here
                     }
                 } else {
                     activeGroup.expenses.push({
@@ -911,7 +1252,7 @@
                         splitType: splitType, // Save the split type
                         consumedBy: consumersData // Save the processed consumer data
                     });
-                    showCustomAlert('Expense added successfully!');
+                    // No alert needed here
                 }
 
                 // Clear form and reset state
@@ -1039,36 +1380,12 @@
                     }
                 });
 
-                let totalConsumerCost = 0; // Sum of what consumers are responsible for
-                let totalShares = 0;
-
-                if (expense.splitType === 'equal') {
-                    const numConsumers = expense.consumedBy.length;
-                    if (numConsumers > 0) {
-                        const perPersonCost = expense.amount / numConsumers;
-                        expense.consumedBy.forEach(consumerId => {
-                            if (balances[consumerId] !== undefined) {
-                                balances[consumerId] -= perPersonCost;
-                            }
-                        });
+                activeGroup.members.forEach(member => {
+                     const cost = getConsumerCostForExpense(expense, member.id);
+                     if (balances[member.id] !== undefined) {
+                        balances[member.id] -= cost;
                     }
-                } else if (expense.splitType === 'shares') {
-                    totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
-                    if (totalShares > 0) {
-                        expense.consumedBy.forEach(consumer => {
-                            if (balances[consumer.id] !== undefined) {
-                                const consumerCost = (expense.amount / totalShares) * consumer.share;
-                                balances[consumer.id] -= consumerCost;
-                            }
-                        });
-                    }
-                } else if (expense.splitType === 'custom') {
-                    expense.consumedBy.forEach(consumer => {
-                        if (balances[consumer.id] !== undefined) {
-                            balances[consumer.id] -= consumer.amount; // Directly subtract custom amount
-                        }
-                    });
-                }
+                });
             });
 
             // Format balances into a list of transactions for display
@@ -1077,7 +1394,7 @@
                 if (Math.abs(balances[memberId]) > 0.01) { // Consider balances close to zero as settled
                     outstandingBalances.push({
                         memberId: memberId,
-                        balance: balances[memberId]
+                        balance: balances[member.id]
                     });
                 }
             }
@@ -1188,40 +1505,20 @@
                         currentBalances[member.id] = 0;
                     });
 
+                    // We re-use the consumption logic from calculateAndRenderBalances
                     activeGroup.expenses.forEach(expense => {
                         expense.paidBy.forEach(payer => {
                             if (currentBalances[payer.id] !== undefined) {
                                 currentBalances[payer.id] += payer.amount;
                             }
                         });
-                        let totalShares = 0;
-                        if (expense.splitType === 'equal') {
-                            const numConsumers = expense.consumedBy.length;
-                            if (numConsumers > 0) {
-                                const perPersonCost = expense.amount / numConsumers;
-                                expense.consumedBy.forEach(consumerId => {
-                                    if (currentBalances[consumerId] !== undefined) {
-                                        currentBalances[consumerId] -= perPersonCost;
-                                    }
-                                });
+                        
+                        activeGroup.members.forEach(member => {
+                             const cost = getConsumerCostForExpense(expense, member.id);
+                             if (currentBalances[member.id] !== undefined) {
+                                currentBalances[member.id] -= cost;
                             }
-                        } else if (expense.splitType === 'shares') {
-                            totalShares = expense.consumedBy.reduce((sum, c) => sum + c.share, 0);
-                            if (totalShares > 0) {
-                                expense.consumedBy.forEach(consumer => {
-                                    if (currentBalances[consumer.id] !== undefined) {
-                                        const consumerCost = (expense.amount / totalShares) * consumer.share;
-                                        currentBalances[consumer.id] -= consumerCost;
-                                    }
-                                });
-                            }
-                        } else if (expense.splitType === 'custom') {
-                            expense.consumedBy.forEach(consumer => {
-                                if (currentBalances[consumer.id] !== undefined) {
-                                    currentBalances[consumer.id] -= consumer.amount;
-                                }
-                            });
-                        }
+                        });
                     });
 
                     const outstandingBalances = [];
@@ -1317,6 +1614,7 @@
             reader.onload = (e) => {
                 try {
                     const importedGroups = JSON.parse(e.target.result);
+                    console.log('Parsed importedGroups:', importedGroups); // DEBUG
 
                     // Basic validation to ensure imported data structure is somewhat compatible
                     if (!Array.isArray(importedGroups) || importedGroups.some(g => !g.id || !g.name || !Array.isArray(g.members) || !Array.isArray(g.expenses))) {
@@ -1327,17 +1625,29 @@
                     showCustomConfirm('Importing data will overwrite all existing Buddy Bill data. Are you sure you want to continue?', (confirmed) => {
                         if (confirmed) {
                             groups = importedGroups;
-                            // Try to restore active group, or default to first if available
-                            const lastActiveGroupId = localStorage.getItem('buddyBillActiveGroup');
-                            if (lastActiveGroupId && groups.some(g => g.id === lastActiveGroupId)) {
-                                activeGroupId = lastActiveGroupId;
+                            console.log('Global groups after import assignment:', groups); // DEBUG
+
+                            let newActiveId = null;
+                            const previouslyActiveId = localStorage.getItem('buddyBillActiveGroup');
+                            console.log('Previously active ID from local storage:', previouslyActiveId); // DEBUG
+
+                            if (previouslyActiveId && groups.some(g => g.id === previouslyActiveId)) {
+                                newActiveId = previouslyActiveId;
+                                console.log('Setting new active ID to previously active (found):', newActiveId); // DEBUG
                             } else if (groups.length > 0) {
-                                activeGroupId = groups[0].id;
+                                newActiveId = groups[0].id;
+                                console.log('Setting new active ID to first group:', newActiveId); // DEBUG
                             } else {
-                                activeGroupId = null;
+                                newActiveId = null;
+                                console.log('No groups in imported data, active ID is null.'); // DEBUG
                             }
+
+                            activeGroupId = newActiveId;
+                            console.log('Final activeGroupId after import logic:', activeGroupId); // DEBUG
+
                             saveData();
                             saveActiveGroup();
+
                             renderGroups();
                             renderActiveGroupDetails();
                             showCustomAlert('Data imported successfully!');
@@ -1369,6 +1679,9 @@
             document.getElementById('importDataBtn').addEventListener('click', importData);
             document.getElementById('importFile').addEventListener('change', handleFileSelect);
             document.getElementById('settleDebtsBtn').addEventListener('click', settleDebts);
+            
+            // New listener for Select All Consumers button
+            document.getElementById('toggleAllConsumersBtn').addEventListener('click', toggleAllConsumers);
 
             // Individual settlement modal buttons
             individualSettleConfirmBtn.addEventListener('click', handleIndividualSettleConfirm);
@@ -1390,6 +1703,7 @@
                 }
             });
 
+            // Event delegation for dynamically added delete buttons
             document.getElementById('memberList').addEventListener('click', (e) => {
                 if (e.target.closest('.delete-member-btn')) {
                     const id = e.target.closest('.delete-member-btn').dataset.id;
