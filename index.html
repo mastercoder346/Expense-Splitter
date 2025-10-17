@@ -1359,7 +1359,10 @@
             const balancesTableBody = document.getElementById('balancesTableBody');
             const noBalancesMessage = document.getElementById('noBalancesMessage');
             const activeGroup = groups.find(g => g.id === activeGroupId);
-            balancesTableBody.innerHTML = ''; // Clear existing rows
+            
+            // Clear previous content
+            balancesTableBody.innerHTML = '';
+            noBalancesMessage.classList.add('hidden');
 
             if (!activeGroup || activeGroup.members.length === 0 || activeGroup.expenses.length === 0) {
                 noBalancesMessage.classList.remove('hidden');
@@ -1380,7 +1383,7 @@
                     }
                 });
 
-                activeGroup.members.forEach(member => {
+                activeGroup.members.forEach(member => { // FIXED: Loop over activeGroup.members
                      const cost = getConsumerCostForExpense(expense, member.id);
                      if (balances[member.id] !== undefined) {
                         balances[member.id] -= cost;
@@ -1394,7 +1397,7 @@
                 if (Math.abs(balances[memberId]) > 0.01) { // Consider balances close to zero as settled
                     outstandingBalances.push({
                         memberId: memberId,
-                        balance: balances[member.id]
+                        balance: balances[memberId]
                     });
                 }
             }
@@ -1513,7 +1516,7 @@
                             }
                         });
                         
-                        activeGroup.members.forEach(member => {
+                        activeGroup.members.forEach(member => { // FIXED: Loop over activeGroup.members
                              const cost = getConsumerCostForExpense(expense, member.id);
                              if (currentBalances[member.id] !== undefined) {
                                 currentBalances[member.id] -= cost;
