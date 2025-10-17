@@ -1763,5 +1763,81 @@
             });
         });
     </script>
+<!-- Enhanced Export Tables as Static HTML Button -->
+<div class="flex justify-center my-8">
+  <button
+    id="exportStaticHtmlBtn"
+    class="bg-blue-600 text-white font-semibold py-2 px-6 rounded shadow transition hover:bg-blue-700"
+    type="button"
+  >
+    Export Tables as Static HTML
+  </button>
+</div>
+<script>
+document.getElementById('exportStaticHtmlBtn').onclick = function () {
+  // 1. Expenses Table (has id)
+  const tables = [];
+  const expenses = document.getElementById('expensesTable');
+  if (expenses) tables.push({title: 'All Expenses', table: expenses});
+  // 2. Consumption Detail Breakdown (find table via tbody id)
+  const consumptionTbody = document.getElementById('consumptionDetailTableBody');
+  if (consumptionTbody) {
+    const tbl = consumptionTbody.closest('table');
+    if (tbl) tables.push({title: 'Consumption Detail Breakdown', table: tbl});
+  }
+  // 3. Overall Summary (table has summaryTableBody and summaryGrandTotals in tbody/tfoot)
+  const summaryTbody = document.getElementById('summaryTableBody');
+  if (summaryTbody) {
+    const tbl = summaryTbody.closest('table');
+    if (tbl) tables.push({title: 'Overall Financial Summary', table: tbl});
+  }
+  // 4. Balances Table (has id)
+  const balances = document.getElementById('balancesTable');
+  if (balances) tables.push({title: 'Balances', table: balances});
+
+  let htmlTables = '';
+  tables.forEach(({title, table}) => {
+    // Clone and clean
+    const tblClone = table.cloneNode(true);
+    tblClone.querySelectorAll('button,input,select,.actions,.edit,.delete').forEach(e => e.remove());
+    htmlTables += `<h2 style="margin:32px 0 12px 0;">${title}</h2>` + tblClone.outerHTML;
+  });
+  if (!htmlTables) {
+    alert('No tables found to export.');
+    return;
+  }
+  // Basic static HTML structure
+  const exportedHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Exported Tables Snapshot</title>
+  <style>
+    body { font-family: Inter, sans-serif; background: #f0f2f5; color: #222; padding:2rem; }
+    table { border-collapse: collapse; width: 100%; margin-bottom:1.5em; background: #fff; }
+    th, td { border:1px solid #ddd; padding: 8px; }
+    th { background: #e2e8f0; }
+    h2 { font-size:1.5em; }
+  </style>
+</head>
+<body>
+  <h1>Exported Tables Snapshot</h1>
+  ${htmlTables}
+</body>
+</html>
+  `.trim();
+
+  // Download as .html file
+  const blob = new Blob([exportedHtml], { type: 'text/html' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'tables_snapshot.html';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+</script>
+
 </body>
 </html>
